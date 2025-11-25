@@ -18,7 +18,7 @@ import asyncio
 import logging
 
 from database import get_db
-from models import Round, Player, Action, Message, Indicator
+from models import Round, Player, Action, Message, Indicator, RoundStatus, Choice
 from schemas import (
     RoundCurrentResponse,
     PairResponse,
@@ -36,7 +36,8 @@ from core.exceptions import (
     PairNotFound,
     MessageNotAllowedInThisRound,
     MessageAlreadySent,
-    IndicatorsAlreadyAssigned
+    IndicatorsAlreadyAssigned,
+    InvalidStateTransition
 )
 from services.pairing_service import get_opponent_id
 from services.indicator_service import (
@@ -72,6 +73,8 @@ def get_current_round(room_id: UUID, db: Session = Depends(get_db)):
             status=current_round.status
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to get current round: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal error")
@@ -178,16 +181,31 @@ async def submit_action(
             action_data.choice
         )
 
-        # 3. 嘗試結算回合（冪等：重複呼叫不會重複計算）
-        #    這裡是關鍵改動！任何人都可以呼叫，不用管「誰是最後一個」
+        # 3. 計算進度
+        submitted_count = db.query(Action).filter(
+            Action.round_id == round_obj.id
+        ).count()
+
+        # 取得該回合的配對數量，計算總玩家數
+        from services.pairing_service import get_pairs_in_round
+        pairs = get_pairs_in_round(round_obj.id, db)
+        total_players = len(pairs) * 2
+
+        # 4. 廣播進度通知（非阻塞）
+        asyncio.create_task(
+            _notify_action_submitted(room_id, round_number, submitted_count, total_players)
+        )
+
+        # 5. 嘗試計算回合結果（冪等：重複呼叫不會重複計算）
+        #    注意：這裡只計算，不公布結果
         finalized = RoundManager.try_finalize_round(db, round_obj.id)
 
-        # 4. 如果結算成功，發送 WebSocket 通知（非阻塞）
+        # 6. 如果所有人都提交了，廣播「等待公布」通知
         if finalized:
             asyncio.create_task(
-                _notify_round_ended(room_id, round_number)
+                _notify_round_ready(room_id, round_number)
             )
-            logger.info(f"Round {round_obj.id} finalized and notification sent")
+            logger.info(f"Round {round_obj.id} calculated, waiting for publish")
 
         return ActionResponse(status="ok")
 
@@ -195,6 +213,139 @@ async def submit_action(
         raise HTTPException(status_code=404, detail="Round not found")
     except Exception as e:
         logger.error(f"Failed to submit action: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal error")
+
+
+@router.post("/{room_id}/rounds/{round_number}/publish", response_model=ActionResponse)
+async def publish_round_results(
+    room_id: UUID,
+    round_number: int,
+    db: Session = Depends(get_db)
+):
+    """
+    公布回合結果（Host endpoint）
+
+    前置條件：
+    - Round 狀態必須是 READY_TO_PUBLISH
+
+    效果：
+    - 狀態轉換 READY_TO_PUBLISH -> COMPLETED
+    - 廣播 ROUND_ENDED
+    - 客戶端收到後呼叫 GET /rounds/{n}/result
+
+    參數：
+        room_id: 房間 UUID
+        round_number: 回合數
+
+    返回：
+        - status: "ok"
+    """
+    try:
+        # 1. 找到回合
+        round_obj = RoundManager.get_round_by_number(db, room_id, round_number)
+        if not round_obj:
+            raise HTTPException(status_code=404, detail="Round not found")
+
+        # 2. 公布結果（冪等）
+        RoundManager.publish_round(db, round_obj.id)
+
+        # 3. 廣播「結果已公布」通知
+        asyncio.create_task(
+            _notify_round_ended(room_id, round_number)
+        )
+
+        logger.info(f"Round {round_number} published for room {room_id}")
+        return ActionResponse(status="ok")
+
+    except InvalidStateTransition as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to publish round: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal error")
+
+
+@router.post("/{room_id}/rounds/{round_number}/skip", response_model=ActionResponse)
+async def skip_round(
+    room_id: UUID,
+    round_number: int,
+    db: Session = Depends(get_db)
+):
+    """
+    跳過回合（Host endpoint）
+
+    用途：
+    - 有玩家斷線、長時間不選擇
+    - 管理員決定提前結束
+
+    效果：
+    - 為未提交的玩家填入預設選擇（TURN）
+    - 計算結果
+    - 立即公布
+
+    參數：
+        room_id: 房間 UUID
+        round_number: 回合數
+
+    返回：
+        - status: "ok"
+    """
+    try:
+        # 1. 找到回合
+        round_obj = RoundManager.get_round_by_number(db, room_id, round_number)
+        if not round_obj:
+            raise HTTPException(status_code=404, detail="Round not found")
+
+        # 2. 檢查狀態（只能跳過 WAITING_ACTIONS 或 READY_TO_PUBLISH）
+        if round_obj.status not in [RoundStatus.WAITING_ACTIONS, RoundStatus.READY_TO_PUBLISH]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot skip round in status {round_obj.status.value}"
+            )
+
+        logger.info(f"Skipping round {round_number} for room {room_id}")
+
+        # 3. 為未提交的玩家填入預設動作
+        from services.pairing_service import get_pairs_in_round
+        pairs = get_pairs_in_round(round_obj.id, db)
+
+        for pair in pairs:
+            for player_id in [pair.player1_id, pair.player2_id]:
+                # 檢查該玩家是否已提交
+                existing = db.query(Action).filter(
+                    Action.round_id == round_obj.id,
+                    Action.player_id == player_id
+                ).first()
+
+                if not existing:
+                    # 預設選擇：TURN（轉彎）
+                    logger.info(f"Auto-submitting TURN for player {player_id}")
+                    RoundManager.submit_action(
+                        db, round_obj.id, player_id, Choice.TURN
+                    )
+
+        db.commit()
+
+        # 4. 計算結果（如果還沒計算）
+        if round_obj.status == RoundStatus.WAITING_ACTIONS:
+            RoundManager.try_finalize_round(db, round_obj.id)
+
+        # 5. 立即公布結果
+        RoundManager.publish_round(db, round_obj.id)
+
+        # 6. 廣播通知（包含 skipped 標記）
+        asyncio.create_task(
+            broadcast_event(room_id, WSEventType.ROUND_ENDED, {
+                "round_number": round_number,
+                "skipped": True
+            })
+        )
+
+        logger.info(f"Round {round_number} skipped and published for room {room_id}")
+        return ActionResponse(status="ok")
+
+    except Exception as e:
+        logger.error(f"Failed to skip round: {e}", exc_info=True)
+        db.rollback()
         raise HTTPException(status_code=500, detail="Internal error")
 
 
@@ -367,6 +518,9 @@ def get_message(
 
         return MessageResponse(content=message.content, from_opponent=True)
 
+    except HTTPException:
+        # 讓 4xx 直接透出，避免被包成 500
+        raise
     except Exception as e:
         logger.error(f"Failed to get message: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal error")
@@ -449,9 +603,27 @@ def get_player_indicator_endpoint(
 
 # ============ WebSocket 通知輔助函式 ============
 
-async def _notify_round_ended(room_id: UUID, round_number: int):
-    """發送「回合結束」通知"""
+async def _notify_action_submitted(room_id: UUID, round_number: int, submitted: int, total: int):
+    """發送「動作已提交」通知（進度更新）"""
     await asyncio.sleep(0)  # 確保 DB commit 完成
+    await broadcast_event(room_id, WSEventType.ACTION_SUBMITTED, {
+        "round_number": round_number,
+        "submitted": submitted,
+        "total": total
+    })
+
+
+async def _notify_round_ready(room_id: UUID, round_number: int):
+    """發送「回合準備公布」通知（所有人都提交了）"""
+    await asyncio.sleep(0)
+    await broadcast_event(room_id, WSEventType.ROUND_READY, {
+        "round_number": round_number
+    })
+
+
+async def _notify_round_ended(room_id: UUID, round_number: int):
+    """發送「回合結束」通知（結果已公布，Client 去 GET /result）"""
+    await asyncio.sleep(0)
     await broadcast_event(room_id, WSEventType.ROUND_ENDED, {
         "round_number": round_number
     })

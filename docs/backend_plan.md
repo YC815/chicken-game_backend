@@ -371,12 +371,11 @@ Response:
 
 ### 6.1 配對邏輯 Pairing
 
-每輪：
+只在 Round 1 隨機配一次，之後各回合都沿用 Round 1 的對手組合：
 
 1. 取得所有 players
-2. 打亂
-3. 兩兩成對
-4. 存入 pairs 表
+2. Round 1 打亂後兩兩成對並存入 pairs 表
+3. 後續回合建立新 pairs 記錄，但直接複製 Round 1 的配對
 
 ### 6.2 payoff 計算
 

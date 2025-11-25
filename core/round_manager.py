@@ -30,7 +30,10 @@ from core.exceptions import (
     ActionAlreadySubmitted,
     InvalidPlayerCount
 )
-from services.pairing_service import create_pairs_for_round
+from services.pairing_service import (
+    create_pairs_for_round,
+    copy_pairs_from_round
+)
 from services.payoff_service import (
     calculate_round_payoffs,
     all_actions_submitted
@@ -106,9 +109,25 @@ class RoundManager:
         db.add(new_round)
         db.flush()  # 取得 round ID
 
-        # 6. 建立配對
+        # 6. 建立配對（Round 1 隨機、之後沿用 Round 1 配對）
         try:
-            pairs = create_pairs_for_round(room_id, new_round.id, db)
+            if round_number == 1:
+                pairs = create_pairs_for_round(room_id, new_round.id, db)
+            else:
+                # 使用 Round 1 的配對固定對手
+                first_round = db.query(Round).filter(
+                    Round.room_id == room_id,
+                    Round.round_number == 1
+                ).first()
+                if not first_round:
+                    raise ValueError("Round 1 not found to reuse pairs from")
+
+                pairs = copy_pairs_from_round(
+                    room_id=room_id,
+                    source_round_id=first_round.id,
+                    target_round_id=new_round.id,
+                    db=db
+                )
             logger.info(f"Created {len(pairs)} pairs for round {new_round.id}")
         except ValueError as e:
             # 玩家數量不是偶數
@@ -210,12 +229,12 @@ class RoundManager:
     @transactional
     def try_finalize_round(db: Session, round_id: UUID) -> bool:
         """
-        嘗試結算回合（安全的並發設計）
+        計算回合結果（但不公布）
 
         重要：
         - 此函式是冪等的（可以被多次呼叫）
         - 使用 DB lock + result_calculated 欄位防止重複計算
-        - 如果已經結算過，直接返回 True
+        - 結果計算完成後停在 READY_TO_PUBLISH 狀態
 
         流程：
         1. 鎖定 Round
@@ -224,7 +243,7 @@ class RoundManager:
         4. 狀態轉換 WAITING_ACTIONS -> CALCULATING
         5. 計算 Payoff
         6. 標記 result_calculated = True
-        7. 狀態轉換 CALCULATING -> COMPLETED
+        7. 狀態轉換 CALCULATING -> READY_TO_PUBLISH（停在這裡，等待管理員公布）
         8. 記錄事件
 
         參數：
@@ -236,6 +255,7 @@ class RoundManager:
 
         設計理念（Linus 的「好品味」）：
         - 消除特殊情況：任何人都可以呼叫此函式，不用管「誰是最後一個」
+        - 分離關注點：計算（finalize）與公布（publish）是兩件事
         - DB lock 確保不會重複計算
         - 冪等性：多次呼叫效果相同
         """
@@ -255,7 +275,7 @@ class RoundManager:
             logger.info(f"Round {round_id} not all actions submitted yet")
             return False
 
-        logger.info(f"Finalizing round {round_id} (room={round_obj.room_id}, round_number={round_obj.round_number})")
+        logger.info(f"Calculating round {round_id} results (room={round_obj.room_id}, round_number={round_obj.round_number})")
 
         # 4. 狀態轉換：WAITING_ACTIONS -> CALCULATING
         round_obj = RoundStateMachine.transition(
@@ -270,17 +290,17 @@ class RoundManager:
         # 6. 標記為已計算（防止重複計算的關鍵！）
         round_obj.result_calculated = True
 
-        # 7. 狀態轉換：CALCULATING -> COMPLETED
+        # 7. 狀態轉換：CALCULATING -> READY_TO_PUBLISH（停在這裡，等待管理員公布）
         round_obj = RoundStateMachine.transition(
             round_id,
-            RoundStatus.COMPLETED,
+            RoundStatus.READY_TO_PUBLISH,
             db
         )
 
         # 8. 記錄事件
         event = EventLog(
             room_id=round_obj.room_id,
-            event_type="ROUND_FINALIZED",
+            event_type="ROUND_CALCULATED",
             data={
                 "round_id": str(round_id),
                 "round_number": round_obj.round_number
@@ -288,8 +308,74 @@ class RoundManager:
         )
         db.add(event)
 
-        logger.info(f"Round {round_id} finalized successfully")
+        logger.info(f"Round {round_id} calculated, waiting for publish")
         return True
+
+    @staticmethod
+    @transactional
+    def publish_round(db: Session, round_id: UUID) -> Round:
+        """
+        公布回合結果
+
+        前置條件：
+        - Round 狀態必須是 READY_TO_PUBLISH
+        - result_calculated 必須為 True
+
+        流程：
+        1. 鎖定 Round
+        2. 檢查狀態
+        3. 狀態轉換 READY_TO_PUBLISH -> COMPLETED
+        4. 記錄事件
+
+        參數：
+            db: SQLAlchemy Session
+            round_id: Round UUID
+
+        返回：
+            更新後的 Round
+
+        設計理念：
+        - 冪等性：如果已經是 COMPLETED，直接返回
+        - 簡單明確：只做狀態轉換，不做計算
+        """
+        # 1. 鎖定 Round
+        round_obj = with_round_lock(round_id, db).first()
+        if not round_obj:
+            raise RoundNotFound(round_id)
+
+        # 2. Idempotency check：已經公布了？
+        if round_obj.status == RoundStatus.COMPLETED:
+            logger.info(f"Round {round_id} already published")
+            return round_obj
+
+        # 3. 檢查狀態
+        if round_obj.status != RoundStatus.READY_TO_PUBLISH:
+            raise InvalidStateTransition(
+                f"Cannot publish round in status {round_obj.status.value}"
+            )
+
+        logger.info(f"Publishing round {round_id} (room={round_obj.room_id}, round_number={round_obj.round_number})")
+
+        # 4. 狀態轉換：READY_TO_PUBLISH -> COMPLETED
+        round_obj = RoundStateMachine.transition(
+            round_id,
+            RoundStatus.COMPLETED,
+            db
+        )
+
+        # 5. 記錄事件
+        event = EventLog(
+            room_id=round_obj.room_id,
+            event_type="ROUND_PUBLISHED",
+            data={
+                "round_id": str(round_id),
+                "round_number": round_obj.round_number
+            }
+        )
+        db.add(event)
+
+        logger.info(f"Round {round_id} published successfully")
+        return round_obj
 
     @staticmethod
     def get_round_by_number(

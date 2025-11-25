@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chicken Game - Test Console</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            background: #0a0a0a;
+            color: #00ff00;
+            padding: 20px;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+
+        .panel {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 20px;
+            overflow-y: auto;
+            max-height: calc(100vh - 180px);
+        }
+
+        .panel h2 {
+            color: #00ffff;
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section h3 {
+            color: #ffff00;
+            margin-bottom: 15px;
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+
+        button {
+            background: #2a2a2a;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 10px 20px;
+            margin: 5px 5px 5px 0;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 12px;
+            border-radius: 3px;
+            transition: all 0.2s;
+        }
+
+        button:hover:not(:disabled) {
+            background: #00ff00;
+            color: #000;
+        }
+
+        button:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            border-color: #555;
+            color: #555;
+        }
+
+        input {
+            background: #0a0a0a;
+            color: #00ff00;
+            border: 1px solid #333;
+            padding: 8px;
+            font-family: inherit;
+            font-size: 12px;
+            border-radius: 3px;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #00ff00;
+        }
+
+        .info {
+            background: #0f0f0f;
+            padding: 10px;
+            margin: 10px 0;
+            border-left: 3px solid #00ffff;
+            font-size: 12px;
+        }
+
+        .info-label {
+            color: #888;
+            display: inline-block;
+            width: 120px;
+        }
+
+        .info-value {
+            color: #00ff00;
+            font-weight: bold;
+        }
+
+        .log {
+            background: #0a0a0a;
+            padding: 15px;
+            margin: 10px 0;
+            border: 1px solid #222;
+            border-radius: 3px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 11px;
+        }
+
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 2px solid #333;
+            padding-left: 10px;
+        }
+
+        .log-entry.ws-event {
+            border-left-color: #ff00ff;
+            color: #ff00ff;
+        }
+
+        .log-entry.api-call {
+            border-left-color: #00ffff;
+            color: #00ffff;
+        }
+
+        .log-entry.error {
+            border-left-color: #ff0000;
+            color: #ff0000;
+        }
+
+        .log-entry.success {
+            border-left-color: #00ff00;
+            color: #00ff00;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        .status-waiting { background: #555; color: #fff; }
+        .status-playing { background: #00ff00; color: #000; }
+        .status-finished { background: #ff0000; color: #fff; }
+
+        .choice-btn {
+            display: block;
+            width: 100%;
+            margin: 5px 0;
+        }
+
+        .result-box {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+        }
+
+        .result-box h4 {
+            color: #ffff00;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+
+        .payoff-positive { color: #00ff00; }
+        .payoff-negative { color: #ff0000; }
+
+        .ws-status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .ws-connected {
+            background: #00ff00;
+            color: #000;
+        }
+
+        .ws-disconnected {
+            background: #ff0000;
+            color: #fff;
+        }
+
+        .message-box {
+            background: #2a2a2a;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+            border: 1px solid #555;
+        }
+
+        textarea {
+            background: #0a0a0a;
+            color: #00ff00;
+            border: 1px solid #333;
+            padding: 8px;
+            font-family: inherit;
+            font-size: 12px;
+            border-radius: 3px;
+            width: 100%;
+            margin: 10px 0;
+            resize: vertical;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #00ff00;
+        }
+
+        .indicator-symbol {
+            font-size: 24px;
+            display: inline-block;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="ws-status" id="wsStatus">WS: DISCONNECTED</div>
+
+    <div class="container">
+        <!-- HOST PANEL -->
+        <div class="panel">
+            <h2>🎮 Host Control</h2>
+
+            <div class="section">
+                <h3>1. Create Room</h3>
+                <button onclick="createRoom()">CREATE ROOM</button>
+                <div class="info" id="hostInfo" style="display: none;">
+                    <div><span class="info-label">Room ID:</span><span class="info-value" id="hostRoomId">-</span></div>
+                    <div><span class="info-label">Code:</span><span class="info-value" id="hostCode">-</span></div>
+                    <div><span class="info-label">Host Player ID:</span><span class="info-value" id="hostPlayerId">-</span></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>2. Game Control</h3>
+                <button onclick="startGame()" id="btnStartGame" disabled>START GAME</button>
+                <button onclick="nextRound()" id="btnNextRound" disabled>NEXT ROUND</button>
+                <button onclick="endGame()" id="btnEndGame" disabled>END GAME</button>
+            </div>
+
+            <div class="section">
+                <h3>3. Special Actions</h3>
+                <button onclick="assignIndicators()" id="btnAssignIndicators" disabled>ASSIGN INDICATORS</button>
+            </div>
+
+            <div class="section">
+                <h3>4. Room Status</h3>
+                <div class="info" id="roomStatusInfo">
+                    <div><span class="info-label">Status:</span><span class="info-value" id="roomStatus">-</span></div>
+                    <div><span class="info-label">Current Round:</span><span class="info-value" id="currentRound">-</span></div>
+                    <div><span class="info-label">Player Count:</span><span class="info-value" id="playerCount">-</span></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>5. Game Summary</h3>
+                <button onclick="getGameSummary()">GET SUMMARY</button>
+                <div id="gameSummary"></div>
+            </div>
+
+            <div class="section">
+                <h3>6. WebSocket Events</h3>
+                <div class="log" id="wsLog"></div>
+            </div>
+        </div>
+
+        <!-- PLAYER 1 PANEL -->
+        <div class="panel">
+            <h2>👤 Player 1</h2>
+
+            <div class="section">
+                <h3>1. Join Room</h3>
+                <input type="text" id="p1Nickname" placeholder="Nickname" value="Alice">
+                <input type="text" id="p1RoomCode" placeholder="Room Code">
+                <button onclick="joinRoom(1)">JOIN ROOM</button>
+                <div class="info" id="p1Info" style="display: none;">
+                    <div><span class="info-label">Player ID:</span><span class="info-value" id="p1PlayerId">-</span></div>
+                    <div><span class="info-label">Display Name:</span><span class="info-value" id="p1DisplayName">-</span></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>2. Current Round</h3>
+                <button onclick="getRoundInfo(1)">GET ROUND INFO</button>
+                <div class="info" id="p1RoundInfo" style="display: none;">
+                    <div><span class="info-label">Round:</span><span class="info-value" id="p1RoundNumber">-</span></div>
+                    <div><span class="info-label">Phase:</span><span class="info-value" id="p1Phase">-</span></div>
+                    <div><span class="info-label">Status:</span><span class="info-value" id="p1RoundStatus">-</span></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>3. Opponent Info</h3>
+                <button onclick="getPair(1)">GET OPPONENT</button>
+                <div class="info" id="p1PairInfo" style="display: none;">
+                    <div><span class="info-label">Opponent:</span><span class="info-value" id="p1OpponentName">-</span></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>4. Make Choice</h3>
+                <button class="choice-btn" onclick="submitAction(1, 'ACCELERATE')">⚡ ACCELERATE</button>
+                <button class="choice-btn" onclick="submitAction(1, 'TURN')">🔄 TURN</button>
+            </div>
+
+            <div class="section">
+                <h3>5. Round Result</h3>
+                <button onclick="getResult(1)">GET RESULT</button>
+                <div id="p1Results"></div>
+            </div>
+
+            <div class="section">
+                <h3>6. Message (Round 5-6)</h3>
+                <textarea id="p1Message" placeholder="Message to opponent..." rows="3"></textarea>
+                <button onclick="sendMessage(1)">SEND MESSAGE</button>
+                <button onclick="getMessage(1)">GET MESSAGE</button>
+                <div class="message-box" id="p1MessageReceived" style="display: none;">
+                    <strong>From Opponent:</strong>
+                    <div id="p1MessageContent"></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>7. Indicator</h3>
+                <button onclick="getIndicator(1)">GET INDICATOR</button>
+                <div class="info" id="p1IndicatorInfo" style="display: none;">
+                    <span class="info-label">Symbol:</span>
+                    <span class="indicator-symbol" id="p1Indicator">-</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- PLAYER 2 PANEL -->
+        <div class="panel">
+            <h2>👤 Player 2</h2>
+
+            <div class="section">
+                <h3>1. Join Room</h3>
+                <input type="text" id="p2Nickname" placeholder="Nickname" value="Bob">
+                <input type="text" id="p2RoomCode" placeholder="Room Code">
+                <button onclick="joinRoom(2)">JOIN ROOM</button>
+                <div class="info" id="p2Info" style="display: none;">
+                    <div><span class="info-label">Player ID:</span><span class="info-value" id="p2PlayerId">-</span></div>
+                    <div><span class="info-label">Display Name:</span><span class="info-value" id="p2DisplayName">-</span></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>2. Current Round</h3>
+                <button onclick="getRoundInfo(2)">GET ROUND INFO</button>
+                <div class="info" id="p2RoundInfo" style="display: none;">
+                    <div><span class="info-label">Round:</span><span class="info-value" id="p2RoundNumber">-</span></div>
+                    <div><span class="info-label">Phase:</span><span class="info-value" id="p2Phase">-</span></div>
+                    <div><span class="info-label">Status:</span><span class="info-value" id="p2RoundStatus">-</span></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>3. Opponent Info</h3>
+                <button onclick="getPair(2)">GET OPPONENT</button>
+                <div class="info" id="p2PairInfo" style="display: none;">
+                    <div><span class="info-label">Opponent:</span><span class="info-value" id="p2OpponentName">-</span></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>4. Make Choice</h3>
+                <button class="choice-btn" onclick="submitAction(2, 'ACCELERATE')">⚡ ACCELERATE</button>
+                <button class="choice-btn" onclick="submitAction(2, 'TURN')">🔄 TURN</button>
+            </div>
+
+            <div class="section">
+                <h3>5. Round Result</h3>
+                <button onclick="getResult(2)">GET RESULT</button>
+                <div id="p2Results"></div>
+            </div>
+
+            <div class="section">
+                <h3>6. Message (Round 5-6)</h3>
+                <textarea id="p2Message" placeholder="Message to opponent..." rows="3"></textarea>
+                <button onclick="sendMessage(2)">SEND MESSAGE</button>
+                <button onclick="getMessage(2)">GET MESSAGE</button>
+                <div class="message-box" id="p2MessageReceived" style="display: none;">
+                    <strong>From Opponent:</strong>
+                    <div id="p2MessageContent"></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>7. Indicator</h3>
+                <button onclick="getIndicator(2)">GET INDICATOR</button>
+                <div class="info" id="p2IndicatorInfo" style="display: none;">
+                    <span class="info-label">Symbol:</span>
+                    <span class="indicator-symbol" id="p2Indicator">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // Configuration
+        // ============================================
+        const API_BASE = 'http://localhost:8000/api';
+        const WS_BASE = 'ws://localhost:8000/ws';
+
+        // ============================================
+        // Global State
+        // ============================================
+        let state = {
+            host: {
+                roomId: null,
+                code: null,
+                playerId: null
+            },
+            player1: {
+                roomId: null,
+                playerId: null,
+                displayName: null,
+                currentRound: null
+            },
+            player2: {
+                roomId: null,
+                playerId: null,
+                displayName: null,
+                currentRound: null
+            },
+            ws: null,
+            wsConnected: false
+        };
+
+        // ============================================
+        // WebSocket Management
+        // ============================================
+        function connectWebSocket(roomId) {
+            if (state.ws) {
+                state.ws.close();
+            }
+
+            const wsUrl = `${WS_BASE}/${roomId}`;
+            logWS(`Connecting to ${wsUrl}...`);
+
+            state.ws = new WebSocket(wsUrl);
+
+            state.ws.onopen = () => {
+                state.wsConnected = true;
+                updateWSStatus(true);
+                logWS('✓ WebSocket connected', 'success');
+            };
+
+            state.ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                logWS(`◆ ${data.event_type}`, 'ws-event');
+                handleWSEvent(data);
+            };
+
+            state.ws.onerror = (error) => {
+                logWS('✗ WebSocket error', 'error');
+                console.error(error);
+            };
+
+            state.ws.onclose = () => {
+                state.wsConnected = false;
+                updateWSStatus(false);
+                logWS('✗ WebSocket disconnected', 'error');
+            };
+        }
+
+        function updateWSStatus(connected) {
+            const statusEl = document.getElementById('wsStatus');
+            if (connected) {
+                statusEl.textContent = 'WS: CONNECTED';
+                statusEl.className = 'ws-status ws-connected';
+            } else {
+                statusEl.textContent = 'WS: DISCONNECTED';
+                statusEl.className = 'ws-status ws-disconnected';
+            }
+        }
+
+        function handleWSEvent(data) {
+            const { event_type, data: eventData } = data;
+
+            switch (event_type) {
+                case 'ROOM_STARTED':
+                    logWS('🎮 Game started!');
+                    updateRoomStatus();
+                    document.getElementById('btnStartGame').disabled = true;
+                    document.getElementById('btnNextRound').disabled = false;
+                    document.getElementById('btnEndGame').disabled = false;
+                    break;
+
+                case 'ROUND_STARTED':
+                    logWS(`🔄 Round ${eventData.round_number} started (Phase: ${eventData.phase})`);
+                    updateRoomStatus();
+                    break;
+
+                case 'ROUND_ENDED':
+                    logWS(`✓ Round ${eventData.round_number} ended`);
+                    updateRoomStatus();
+                    break;
+
+                case 'MESSAGE_PHASE':
+                    logWS('💬 Message phase activated');
+                    break;
+
+                case 'INDICATORS_ASSIGNED':
+                    logWS('🎯 Indicators assigned');
+                    break;
+
+                case 'GAME_ENDED':
+                    logWS('🏁 Game ended!');
+                    updateRoomStatus();
+                    document.getElementById('btnNextRound').disabled = true;
+                    document.getElementById('btnEndGame').disabled = true;
+                    // Auto-fetch game summary
+                    setTimeout(getGameSummary, 500);
+                    break;
+            }
+        }
+
+        // ============================================
+        // Logging
+        // ============================================
+        function logWS(message, type = 'ws-event') {
+            const logEl = document.getElementById('wsLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${timestamp}] ${message}`;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function logAPI(message, type = 'api-call') {
+            console.log(`[API] ${message}`);
+        }
+
+        // ============================================
+        // Host Functions
+        // ============================================
+        async function createRoom() {
+            try {
+                logAPI('POST /rooms');
+                const response = await fetch(`${API_BASE}/rooms`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+
+                const data = await response.json();
+
+                state.host.roomId = data.room_id;
+                state.host.code = data.code;
+                state.host.playerId = data.host_player_id;
+
+                document.getElementById('hostRoomId').textContent = data.room_id;
+                document.getElementById('hostCode').textContent = data.code;
+                document.getElementById('hostPlayerId').textContent = data.host_player_id;
+                document.getElementById('hostInfo').style.display = 'block';
+
+                // Auto-fill room codes for players
+                document.getElementById('p1RoomCode').value = data.code;
+                document.getElementById('p2RoomCode').value = data.code;
+
+                document.getElementById('btnStartGame').disabled = false;
+                document.getElementById('btnAssignIndicators').disabled = false;
+
+                // Connect WebSocket
+                connectWebSocket(data.room_id);
+
+                logWS(`Room created: ${data.code}`, 'success');
+            } catch (error) {
+                logWS(`Failed to create room: ${error.message}`, 'error');
+            }
+        }
+
+        async function startGame() {
+            if (!state.host.roomId) return;
+
+            try {
+                logAPI('POST /rooms/{room_id}/start');
+                const response = await fetch(`${API_BASE}/rooms/${state.host.roomId}/start`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                logWS('Game start request sent', 'success');
+            } catch (error) {
+                logWS(`Failed to start game: ${error.message}`, 'error');
+            }
+        }
+
+        async function nextRound() {
+            if (!state.host.roomId) return;
+
+            try {
+                logAPI('POST /rooms/{room_id}/rounds/next');
+                const response = await fetch(`${API_BASE}/rooms/${state.host.roomId}/rounds/next`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                const data = await response.json();
+                logWS(`Next round request sent: Round ${data.round_number}`, 'success');
+            } catch (error) {
+                logWS(`Failed to start next round: ${error.message}`, 'error');
+            }
+        }
+
+        async function endGame() {
+            if (!state.host.roomId) return;
+
+            try {
+                logAPI('POST /rooms/{room_id}/end');
+                const response = await fetch(`${API_BASE}/rooms/${state.host.roomId}/end`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                logWS('Game end request sent', 'success');
+            } catch (error) {
+                logWS(`Failed to end game: ${error.message}`, 'error');
+            }
+        }
+
+        async function updateRoomStatus() {
+            if (!state.host.code) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/rooms/${state.host.code}`);
+                const data = await response.json();
+
+                document.getElementById('roomStatus').textContent = data.status.toUpperCase();
+                document.getElementById('currentRound').textContent = data.current_round;
+                document.getElementById('playerCount').textContent = data.player_count;
+            } catch (error) {
+                console.error('Failed to update room status:', error);
+            }
+        }
+
+        async function assignIndicators() {
+            if (!state.host.roomId) return;
+
+            try {
+                logAPI('POST /rooms/{room_id}/indicators/assign');
+                const response = await fetch(`${API_BASE}/rooms/${state.host.roomId}/indicators/assign`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                logWS('Indicators assigned', 'success');
+            } catch (error) {
+                logWS(`Failed to assign indicators: ${error.message}`, 'error');
+            }
+        }
+
+        // ============================================
+        // Player Functions
+        // ============================================
+        async function joinRoom(playerNum) {
+            const nickname = document.getElementById(`p${playerNum}Nickname`).value;
+            const roomCode = document.getElementById(`p${playerNum}RoomCode`).value;
+
+            if (!nickname || !roomCode) {
+                alert('Please enter nickname and room code');
+                return;
+            }
+
+            try {
+                logAPI(`POST /rooms/${roomCode}/join`);
+                const response = await fetch(`${API_BASE}/rooms/${roomCode}/join`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nickname })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                const data = await response.json();
+
+                state[`player${playerNum}`].roomId = data.room_id;
+                state[`player${playerNum}`].playerId = data.player_id;
+                state[`player${playerNum}`].displayName = data.display_name;
+
+                document.getElementById(`p${playerNum}PlayerId`).textContent = data.player_id;
+                document.getElementById(`p${playerNum}DisplayName`).textContent = data.display_name;
+                document.getElementById(`p${playerNum}Info`).style.display = 'block';
+
+                logWS(`Player ${playerNum} joined: ${data.display_name}`, 'success');
+
+                // Update room status
+                updateRoomStatus();
+            } catch (error) {
+                logWS(`Player ${playerNum} failed to join: ${error.message}`, 'error');
+            }
+        }
+
+        async function getRoundInfo(playerNum) {
+            const roomId = state[`player${playerNum}`].roomId;
+            if (!roomId) return;
+
+            try {
+                logAPI('GET /rooms/{room_id}/rounds/current');
+                const response = await fetch(`${API_BASE}/rooms/${roomId}/rounds/current`);
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                const data = await response.json();
+
+                state[`player${playerNum}`].currentRound = data.round_number;
+
+                document.getElementById(`p${playerNum}RoundNumber`).textContent = data.round_number;
+                document.getElementById(`p${playerNum}Phase`).textContent = data.phase;
+                document.getElementById(`p${playerNum}RoundStatus`).textContent = data.status;
+                document.getElementById(`p${playerNum}RoundInfo`).style.display = 'block';
+
+                logWS(`Player ${playerNum} round info updated`, 'success');
+            } catch (error) {
+                logWS(`Player ${playerNum} failed to get round info: ${error.message}`, 'error');
+            }
+        }
+
+        async function getPair(playerNum) {
+            const roomId = state[`player${playerNum}`].roomId;
+            const playerId = state[`player${playerNum}`].playerId;
+            const roundNumber = state[`player${playerNum}`].currentRound;
+
+            if (!roomId || !playerId || !roundNumber) {
+                alert('Please get round info first');
+                return;
+            }
+
+            try {
+                logAPI(`GET /rooms/{room_id}/rounds/${roundNumber}/pair`);
+                const response = await fetch(
+                    `${API_BASE}/rooms/${roomId}/rounds/${roundNumber}/pair?player_id=${playerId}`
+                );
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                const data = await response.json();
+
+                document.getElementById(`p${playerNum}OpponentName`).textContent = data.opponent_display_name;
+                document.getElementById(`p${playerNum}PairInfo`).style.display = 'block';
+
+                logWS(`Player ${playerNum} opponent: ${data.opponent_display_name}`, 'success');
+            } catch (error) {
+                logWS(`Player ${playerNum} failed to get pair: ${error.message}`, 'error');
+            }
+        }
+
+        async function submitAction(playerNum, choice) {
+            const roomId = state[`player${playerNum}`].roomId;
+            const playerId = state[`player${playerNum}`].playerId;
+            const roundNumber = state[`player${playerNum}`].currentRound;
+            const choiceValue = choice.toUpperCase();
+
+            if (!roomId || !playerId || !roundNumber) {
+                alert('Please get round info first');
+                return;
+            }
+
+            try {
+                logAPI(`POST /rooms/{room_id}/rounds/${roundNumber}/action`);
+                const response = await fetch(
+                    `${API_BASE}/rooms/${roomId}/rounds/${roundNumber}/action`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            player_id: playerId,
+                            choice: choiceValue
+                        })
+                    }
+                );
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                logWS(`Player ${playerNum} chose: ${choiceValue}`, 'success');
+            } catch (error) {
+                logWS(`Player ${playerNum} failed to submit action: ${error.message}`, 'error');
+            }
+        }
+
+        async function getResult(playerNum) {
+            const roomId = state[`player${playerNum}`].roomId;
+            const playerId = state[`player${playerNum}`].playerId;
+            const roundNumber = state[`player${playerNum}`].currentRound;
+
+            if (!roomId || !playerId || !roundNumber) {
+                alert('Please get round info first');
+                return;
+            }
+
+            try {
+                logAPI(`GET /rooms/{room_id}/rounds/${roundNumber}/result`);
+                const response = await fetch(
+                    `${API_BASE}/rooms/${roomId}/rounds/${roundNumber}/result?player_id=${playerId}`
+                );
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                const data = await response.json();
+
+                const resultBox = document.createElement('div');
+                resultBox.className = 'result-box';
+                resultBox.innerHTML = `
+                    <h4>Round ${roundNumber} Result</h4>
+                    <div><strong>Opponent:</strong> ${data.opponent_display_name}</div>
+                    <div><strong>Your Choice:</strong> ${data.your_choice}</div>
+                    <div><strong>Opponent Choice:</strong> ${data.opponent_choice}</div>
+                    <div class="${data.your_payoff >= 0 ? 'payoff-positive' : 'payoff-negative'}">
+                        <strong>Your Payoff:</strong> ${data.your_payoff}
+                    </div>
+                `;
+
+                const resultsContainer = document.getElementById(`p${playerNum}Results`);
+                resultsContainer.insertBefore(resultBox, resultsContainer.firstChild);
+
+                logWS(`Player ${playerNum} got result for round ${roundNumber}`, 'success');
+            } catch (error) {
+                logWS(`Player ${playerNum} failed to get result: ${error.message}`, 'error');
+            }
+        }
+
+        async function sendMessage(playerNum) {
+            const roomId = state[`player${playerNum}`].roomId;
+            const playerId = state[`player${playerNum}`].playerId;
+            const roundNumber = state[`player${playerNum}`].currentRound;
+            const content = document.getElementById(`p${playerNum}Message`).value;
+
+            if (!roomId || !playerId || !roundNumber) {
+                alert('Please get round info first');
+                return;
+            }
+
+            if (!content) {
+                alert('Please enter a message');
+                return;
+            }
+
+            try {
+                logAPI(`POST /rooms/{room_id}/rounds/${roundNumber}/message`);
+                const response = await fetch(
+                    `${API_BASE}/rooms/${roomId}/rounds/${roundNumber}/message`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            sender_id: playerId,
+                            content: content
+                        })
+                    }
+                );
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                document.getElementById(`p${playerNum}Message`).value = '';
+                logWS(`Player ${playerNum} sent message`, 'success');
+            } catch (error) {
+                logWS(`Player ${playerNum} failed to send message: ${error.message}`, 'error');
+            }
+        }
+
+        async function getMessage(playerNum) {
+            const roomId = state[`player${playerNum}`].roomId;
+            const playerId = state[`player${playerNum}`].playerId;
+            const roundNumber = state[`player${playerNum}`].currentRound;
+
+            if (!roomId || !playerId || !roundNumber) {
+                alert('Please get round info first');
+                return;
+            }
+
+            try {
+                logAPI(`GET /rooms/{room_id}/rounds/${roundNumber}/message`);
+                const response = await fetch(
+                    `${API_BASE}/rooms/${roomId}/rounds/${roundNumber}/message?player_id=${playerId}`
+                );
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                const data = await response.json();
+
+                document.getElementById(`p${playerNum}MessageContent`).textContent = data.content;
+                document.getElementById(`p${playerNum}MessageReceived`).style.display = 'block';
+
+                logWS(`Player ${playerNum} received message`, 'success');
+            } catch (error) {
+                logWS(`Player ${playerNum} failed to get message: ${error.message}`, 'error');
+            }
+        }
+
+        async function getIndicator(playerNum) {
+            const roomId = state[`player${playerNum}`].roomId;
+            const playerId = state[`player${playerNum}`].playerId;
+
+            if (!roomId || !playerId) {
+                alert('Please join room first');
+                return;
+            }
+
+            try {
+                logAPI(`GET /rooms/{room_id}/indicator`);
+                const response = await fetch(
+                    `${API_BASE}/rooms/${roomId}/indicator?player_id=${playerId}`
+                );
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                const data = await response.json();
+
+                document.getElementById(`p${playerNum}Indicator`).textContent = data.symbol;
+                document.getElementById(`p${playerNum}IndicatorInfo`).style.display = 'block';
+
+                logWS(`Player ${playerNum} indicator: ${data.symbol}`, 'success');
+            } catch (error) {
+                logWS(`Player ${playerNum} failed to get indicator: ${error.message}`, 'error');
+            }
+        }
+
+        async function getGameSummary() {
+            if (!state.host.roomId) return;
+
+            try {
+                logAPI('GET /rooms/{room_id}/summary');
+                const response = await fetch(`${API_BASE}/rooms/${state.host.roomId}/summary`);
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                const data = await response.json();
+
+                // Build summary HTML
+                let html = '<div class="result-box"><h4>🏆 Game Summary</h4>';
+
+                // Rankings
+                html += '<h5 style="color: #00ffff; margin: 15px 0 10px 0;">Rankings</h5>';
+                data.players.forEach((player, index) => {
+                    const rankEmoji = index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉';
+                    const payoffClass = player.total_payoff >= 0 ? 'payoff-positive' : 'payoff-negative';
+                    html += `<div style="margin: 5px 0;">
+                        ${rankEmoji} <strong>${player.display_name}</strong>:
+                        <span class="${payoffClass}">${player.total_payoff}</span>
+                    </div>`;
+                });
+
+                // Stats
+                html += '<h5 style="color: #00ffff; margin: 15px 0 10px 0;">Strategy Statistics</h5>';
+                html += `<div style="margin: 5px 0;">
+                    ⚡ Accelerate: <span class="info-value">${(data.stats.accelerate_ratio * 100).toFixed(1)}%</span>
+                </div>`;
+                html += `<div style="margin: 5px 0;">
+                    🔄 Turn: <span class="info-value">${(data.stats.turn_ratio * 100).toFixed(1)}%</span>
+                </div>`;
+
+                html += '</div>';
+
+                document.getElementById('gameSummary').innerHTML = html;
+                logWS('Game summary loaded', 'success');
+            } catch (error) {
+                logWS(`Failed to get game summary: ${error.message}`, 'error');
+            }
+        }
+
+        // ============================================
+        // Initialize
+        // ============================================
+        logWS('Test console initialized');
+        logWS('Click "CREATE ROOM" to start');
+    </script>
+</body>
+</html>

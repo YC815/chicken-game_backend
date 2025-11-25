@@ -132,23 +132,27 @@ class RoundStateMachine:
     狀態流程：
         WAITING_ACTIONS (等待玩家提交動作)
         → CALCULATING (計算結果中)
+        → READY_TO_PUBLISH (結果已計算，等待管理員公布)
         → COMPLETED (完成)
 
     規則：
     - WAITING_ACTIONS 只能轉到 CALCULATING
-    - CALCULATING 只能轉到 COMPLETED
+    - CALCULATING 只能轉到 READY_TO_PUBLISH
+    - READY_TO_PUBLISH 只能轉到 COMPLETED
     - COMPLETED 是終點（不能再轉換）
 
     注意：
     - 從 WAITING_ACTIONS 到 CALCULATING 必須確保所有玩家都提交了動作
-    - 從 CALCULATING 到 COMPLETED 必須確保結果已經計算完畢
+    - 從 CALCULATING 到 READY_TO_PUBLISH 必須確保結果已經計算完畢
+    - 從 READY_TO_PUBLISH 到 COMPLETED 由管理員手動觸發
     - 這些檢查由 RoundManager 負責，狀態機只負責轉換
     """
 
     # 定義所有合法的狀態轉換
     VALID_TRANSITIONS = {
         RoundStatus.WAITING_ACTIONS: [RoundStatus.CALCULATING],
-        RoundStatus.CALCULATING: [RoundStatus.COMPLETED],
+        RoundStatus.CALCULATING: [RoundStatus.READY_TO_PUBLISH],
+        RoundStatus.READY_TO_PUBLISH: [RoundStatus.COMPLETED],
         RoundStatus.COMPLETED: []  # 終點
     }
 

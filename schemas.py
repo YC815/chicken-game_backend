@@ -134,7 +134,9 @@ class GameSummaryResponse(BaseModel):
 class WSEventType:
     ROOM_STARTED = "ROOM_STARTED"
     ROUND_STARTED = "ROUND_STARTED"
-    ROUND_ENDED = "ROUND_ENDED"
+    ACTION_SUBMITTED = "ACTION_SUBMITTED"  # 有玩家提交了動作（進度通知）
+    ROUND_READY = "ROUND_READY"            # 所有人都提交了，等待管理員公布
+    ROUND_ENDED = "ROUND_ENDED"            # 結果已公布（Client 去 GET /result）
     MESSAGE_PHASE = "MESSAGE_PHASE"
     INDICATORS_ASSIGNED = "INDICATORS_ASSIGNED"
     GAME_ENDED = "GAME_ENDED"

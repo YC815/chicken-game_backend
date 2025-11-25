@@ -9,26 +9,27 @@ from database import Base
 
 
 class RoomStatus(str, enum.Enum):
-    WAITING = "waiting"
-    PLAYING = "playing"
-    FINISHED = "finished"
+    WAITING = "WAITING"
+    PLAYING = "PLAYING"
+    FINISHED = "FINISHED"
 
 
 class RoundPhase(str, enum.Enum):
-    NORMAL = "normal"
-    MESSAGE = "message"
-    INDICATOR = "indicator"
+    NORMAL = "NORMAL"
+    MESSAGE = "MESSAGE"
+    INDICATOR = "INDICATOR"
 
 
 class RoundStatus(str, enum.Enum):
     WAITING_ACTIONS = "waiting_actions"
     CALCULATING = "calculating"
+    READY_TO_PUBLISH = "ready_to_publish"  # 結果已計算，等待管理員公布
     COMPLETED = "completed"
 
 
 class Choice(str, enum.Enum):
-    ACCELERATE = "accelerate"
-    TURN = "turn"
+    ACCELERATE = "ACCELERATE"
+    TURN = "TURN"
 
 
 class Room(Base):
@@ -36,7 +37,7 @@ class Room(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     code = Column(String(6), unique=True, nullable=False, index=True)
-    status = Column(Enum(RoomStatus), default=RoomStatus.WAITING, nullable=False)
+    status = Column(Enum(RoomStatus, native_enum=True, values_callable=lambda x: [e.value for e in x]), default=RoomStatus.WAITING, nullable=False)
     current_round = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -72,8 +73,8 @@ class Round(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     room_id = Column(UUID(as_uuid=True), ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False)
     round_number = Column(Integer, nullable=False)
-    phase = Column(Enum(RoundPhase), default=RoundPhase.NORMAL, nullable=False)
-    status = Column(Enum(RoundStatus), default=RoundStatus.WAITING_ACTIONS, nullable=False)
+    phase = Column(Enum(RoundPhase, native_enum=True, values_callable=lambda x: [e.value for e in x]), default=RoundPhase.NORMAL, nullable=False)
+    status = Column(Enum(RoundStatus, native_enum=True, values_callable=lambda x: [e.value for e in x]), default=RoundStatus.WAITING_ACTIONS, nullable=False)
     started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     ended_at = Column(DateTime, nullable=True)
 
@@ -110,7 +111,7 @@ class Action(Base):
     room_id = Column(UUID(as_uuid=True), ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False)
     round_id = Column(UUID(as_uuid=True), ForeignKey("rounds.id", ondelete="CASCADE"), nullable=False)
     player_id = Column(UUID(as_uuid=True), ForeignKey("players.id", ondelete="CASCADE"), nullable=False)
-    choice = Column(Enum(Choice), nullable=False)
+    choice = Column(Enum(Choice, native_enum=True, values_callable=lambda x: [e.value for e in x]), nullable=False)
     payoff = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 

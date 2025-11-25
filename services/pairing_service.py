@@ -72,6 +72,61 @@ def create_pairs_for_round(room_id: UUID, round_id: UUID, db: Session) -> List[P
     return pairs
 
 
+def copy_pairs_from_round(
+    room_id: UUID,
+    source_round_id: UUID,
+    target_round_id: UUID,
+    db: Session
+) -> List[Pair]:
+    """
+    將既有回合的配對複製到新回合（維持固定對手）
+
+    參數：
+        room_id: 房間 ID
+        source_round_id: 來源回合 ID（通常是 Round 1）
+        target_round_id: 目標回合 ID
+        db: SQLAlchemy Session
+
+    返回：
+        新建立的 Pair 物件列表
+
+    異常：
+        ValueError: 如果來源回合沒有任何配對
+    """
+    source_pairs = db.query(Pair).filter(Pair.round_id == source_round_id).all()
+
+    if not source_pairs:
+        raise ValueError(f"No pairs found in source round {source_round_id}")
+
+    new_pairs: List[Pair] = []
+    for pair in source_pairs:
+        cloned = Pair(
+            room_id=room_id,
+            round_id=target_round_id,
+            player1_id=pair.player1_id,
+            player2_id=pair.player2_id
+        )
+        db.add(cloned)
+        new_pairs.append(cloned)
+
+    db.flush()
+    return new_pairs
+
+
+def get_pairs_in_round(round_id: UUID, db: Session) -> List[Pair]:
+    """
+    取得某回合的所有配對
+
+    參數：
+        round_id: 回合 ID
+        db: SQLAlchemy Session
+
+    返回：
+        Pair 物件列表
+    """
+    return db.query(Pair).filter(Pair.round_id == round_id).all()
+
+
 def get_opponent_id(round_id: UUID, player_id: UUID, db: Session) -> UUID:
     """
     找出玩家在某回合的對手 ID

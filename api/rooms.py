@@ -122,20 +122,28 @@ async def start_game(room_id: UUID, db: Session = Depends(get_db)):
 
     流程：
     1. 呼叫 RoomManager.start_game()
-    2. 非同步發送 WebSocket 通知（ROOM_STARTED）
-    3. 返回成功
+    2. 自動建立第一輪（Round 1）
+    3. 非同步發送 WebSocket 通知（ROOM_STARTED + ROUND_STARTED）
+    4. 返回成功
 
     注意：
     - WebSocket 通知是非阻塞的（使用 asyncio.create_task）
     - 確保 DB commit 完成後才發送通知
+    - 自動建立第一輪，消除 current_round=0 的中間狀態
     """
     try:
         # 1. 開始遊戲（業務邏輯）
         RoomManager.start_game(db, room_id)
 
-        # 2. 發送 WebSocket 通知（非阻塞）
+        # 2. 立即建立第一輪（消除 current_round=0 的中間狀態）
+        first_round = RoundManager.create_round(db, room_id)
+
+        # 3. 發送 WebSocket 通知（非阻塞）
         asyncio.create_task(
             _notify_room_started(room_id)
+        )
+        asyncio.create_task(
+            _notify_round_started(room_id, first_round.round_number, first_round.phase.value)
         )
 
         return {"status": "ok"}
@@ -145,6 +153,8 @@ async def start_game(room_id: UUID, db: Session = Depends(get_db)):
     except InvalidPlayerCount as e:
         raise HTTPException(status_code=400, detail=str(e))
     except InvalidStateTransition as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except MaxRoundsReached as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Failed to start game: {e}", exc_info=True)

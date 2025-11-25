@@ -1,0 +1,1626 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chicken Game - 測試控台 v2.0</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            background: #0a0a0a;
+            color: #00ff00;
+            padding: 20px;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            max-width: 2200px;
+            margin: 0 auto;
+        }
+
+        .panel {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 20px;
+            overflow-y: auto;
+            max-height: calc(100vh - 180px);
+        }
+
+        .panel h2 {
+            color: #00ffff;
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section h3 {
+            color: #ffff00;
+            margin-bottom: 15px;
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+
+        button {
+            background: #2a2a2a;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 10px 20px;
+            margin: 5px 5px 5px 0;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 12px;
+            border-radius: 3px;
+            transition: all 0.2s;
+        }
+
+        button:hover:not(:disabled) {
+            background: #00ff00;
+            color: #000;
+        }
+
+        button:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            border-color: #555;
+            color: #555;
+        }
+
+        button.publish-btn {
+            border-color: #ff9900;
+            color: #ff9900;
+        }
+
+        button.publish-btn:hover:not(:disabled) {
+            background: #ff9900;
+            color: #000;
+        }
+
+        button.skip-btn {
+            border-color: #ff0000;
+            color: #ff0000;
+        }
+
+        button.skip-btn:hover:not(:disabled) {
+            background: #ff0000;
+            color: #fff;
+        }
+
+        input {
+            background: #0a0a0a;
+            color: #00ff00;
+            border: 1px solid #333;
+            padding: 8px;
+            font-family: inherit;
+            font-size: 12px;
+            border-radius: 3px;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #00ff00;
+        }
+
+        .info {
+            background: #0f0f0f;
+            padding: 10px;
+            margin: 10px 0;
+            border-left: 3px solid #00ffff;
+            font-size: 12px;
+        }
+
+        .info-label {
+            color: #888;
+            display: inline-block;
+            width: 120px;
+        }
+
+        .info-value {
+            color: #00ff00;
+            font-weight: bold;
+        }
+
+        .progress-bar {
+            background: #0a0a0a;
+            height: 20px;
+            border: 1px solid #333;
+            border-radius: 3px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            background: linear-gradient(90deg, #00ff00 0%, #00ffff 100%);
+            height: 100%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: bold;
+            color: #000;
+        }
+
+        .log {
+            background: #0a0a0a;
+            padding: 15px;
+            margin: 10px 0;
+            border: 1px solid #222;
+            border-radius: 3px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 11px;
+        }
+
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 2px solid #333;
+            padding-left: 10px;
+        }
+
+        .log-entry.ws-event {
+            border-left-color: #ff00ff;
+            color: #ff00ff;
+        }
+
+        .log-entry.api-call {
+            border-left-color: #00ffff;
+            color: #00ffff;
+        }
+
+        .log-entry.error {
+            border-left-color: #ff0000;
+            color: #ff0000;
+        }
+
+        .log-entry.success {
+            border-left-color: #00ff00;
+            color: #00ff00;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        .status-waiting { background: #555; color: #fff; }
+        .status-playing { background: #00ff00; color: #000; }
+        .status-finished { background: #ff0000; color: #fff; }
+        .status-ready { background: #ff9900; color: #000; }
+
+        .choice-btn {
+            display: block;
+            width: 100%;
+            margin: 5px 0;
+        }
+
+        .result-box {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+        }
+
+        .result-box h4 {
+            color: #ffff00;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+
+        .payoff-positive { color: #00ff00; }
+        .payoff-negative { color: #ff0000; }
+
+        .ws-status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .ws-connected {
+            background: #00ff00;
+            color: #000;
+        }
+
+        .ws-disconnected {
+            background: #ff0000;
+            color: #fff;
+        }
+
+        .message-box {
+            background: #2a2a2a;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+            border: 1px solid #555;
+        }
+
+        textarea {
+            background: #0a0a0a;
+            color: #00ff00;
+            border: 1px solid #333;
+            padding: 8px;
+            font-family: inherit;
+            font-size: 12px;
+            border-radius: 3px;
+            width: 100%;
+            margin: 10px 0;
+            resize: vertical;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #00ff00;
+        }
+
+        .indicator-symbol {
+            font-size: 24px;
+            display: inline-block;
+            margin-left: 10px;
+        }
+
+        .waiting-indicator {
+            color: #ff9900;
+            font-size: 14px;
+            padding: 10px;
+            background: #1a1a1a;
+            border: 1px solid #ff9900;
+            border-radius: 3px;
+            margin: 10px 0;
+            text-align: center;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* 快速測試流程面板 */
+        .flow-box {
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+
+        .flow-row {
+            display: grid;
+            grid-template-columns: 28px 1fr auto auto;
+            align-items: center;
+            gap: 8px;
+            margin: 6px 0;
+        }
+
+        .flow-step {
+            color: #00ffff;
+            font-weight: bold;
+        }
+
+        .badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .badge-pending { background: #333; color: #ccc; }
+        .badge-running { background: #ff9900; color: #000; }
+        .badge-done { background: #00ff00; color: #000; }
+        .badge-error { background: #ff0000; color: #fff; }
+    </style>
+</head>
+<body>
+    <div class="ws-status" id="wsStatus">WS: DISCONNECTED</div>
+
+    <div class="container">
+        <!-- HOST PANEL -->
+        <div class="panel">
+            <h2>🎮 主持人控台 v2.0</h2>
+
+            <div class="section">
+                <h3>1. 建立房間（產生房號 + 主持人 ID）</h3>
+                <div class="info" style="margin-bottom: 8px;">按下後會自動連線 WebSocket，並把房號填到兩位玩家欄位。</div>
+                <button onclick="createRoom()">建立房間</button>
+                <div class="info" id="hostInfo" style="display: none;">
+                    <div><span class="info-label">Room ID:</span><span class="info-value" id="hostRoomId">-</span></div>
+                    <div><span class="info-label">房號 Code:</span><span class="info-value" id="hostCode">-</span></div>
+                    <div><span class="info-label">主持人 Player ID:</span><span class="info-value" id="hostPlayerId">-</span></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>2. 遊戲流程控制</h3>
+                <div class="info" style="margin-bottom: 8px;">順序：先 Start → 每回合按 Next Round → 結束時 End。</div>
+                <button onclick="startGame()" id="btnStartGame" disabled>開始遊戲</button>
+                <button onclick="nextRound()" id="btnNextRound" disabled>下一回合</button>
+                <button onclick="endGame()" id="btnEndGame" disabled>結束遊戲</button>
+            </div>
+
+            <div class="section">
+                <h3>3. 回合公布/跳過</h3>
+                <div class="info" style="margin-bottom: 8px;">所有玩家出完牌後會亮起「公布結果」，若卡住可用「跳過」直接結算。</div>
+                <button class="publish-btn" onclick="publishRoundResults()" id="btnPublishRound" disabled>📢 公布結果</button>
+                <button class="skip-btn" onclick="skipRound()" id="btnSkipRound" disabled>⏭️ 跳過本回合</button>
+                <div class="info" id="roundControlInfo" style="display: none; border-left-color: #ff9900;">
+                    <div><span class="info-label">目前回合:</span><span class="info-value" id="roundControlNumber">-</span></div>
+                    <div><span class="info-label">回合狀態:</span><span class="info-value" id="roundControlStatus">-</span></div>
+                    <div style="margin-top: 10px;">
+                        <div class="info-label" style="width: 100%;">提交進度:</div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill" style="width: 0%;">0/0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>4. 特殊階段</h3>
+                <div class="info" style="margin-bottom: 8px;">第 6 回合結束後，按下分配指示物；玩家再去「取得指示物」。</div>
+                <button onclick="assignIndicators()" id="btnAssignIndicators" disabled>分配指示物</button>
+            </div>
+
+            <div class="section">
+                <h3>5. 快速測試輔助</h3>
+                <div class="info" style="margin-bottom: 8px;">
+                    這些按鈕用來省去手動輸入：會自動把房號填入玩家欄位，並用預設暱稱加入、取回合、出招。
+                </div>
+                <button onclick="fillRoomCode()" id="btnFillRoom" disabled>套用房號到兩位玩家</button>
+                <button onclick="quickJoinPlayers()" id="btnQuickJoin" disabled>兩位玩家一鍵加入</button>
+                <button onclick="quickSubmitChoices()" id="btnQuickSubmit" disabled>本輪一鍵出招（P1 加速，P2 轉彎）</button>
+            </div>
+
+            <div class="section">
+                <h3>6. 房間狀態</h3>
+                <div class="info" id="roomStatusInfo">
+                    <div><span class="info-label">房間狀態:</span><span class="info-value" id="roomStatus">-</span></div>
+                    <div><span class="info-label">目前回合:</span><span class="info-value" id="currentRound">-</span></div>
+                    <div><span class="info-label">玩家人數:</span><span class="info-value" id="playerCount">-</span></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>7. 總結（結束後）</h3>
+                <button onclick="getGameSummary()">取得總結</button>
+                <div id="gameSummary"></div>
+            </div>
+
+            <div class="section">
+                <h3>8. WebSocket 事件流</h3>
+                <div class="info" style="margin-bottom: 8px;">收到事件時可對照流程：ROUND_STARTED → ACTION_SUBMITTED → ROUND_READY → ROUND_ENDED。</div>
+                <div class="log" id="wsLog"></div>
+            </div>
+        </div>
+
+        <!-- PLAYER 1 PANEL -->
+        <div class="panel">
+            <h2>👤 玩家 1</h2>
+
+            <div class="section">
+                <h3>1. 加入房間</h3>
+                <input type="text" id="p1Nickname" placeholder="輸入暱稱" value="Alice">
+                <input type="text" id="p1RoomCode" placeholder="輸入房號 Code">
+                <button onclick="joinRoom(1)">加入</button>
+                <div class="info" id="p1Info" style="display: none;">
+                    <div><span class="info-label">玩家 ID:</span><span class="info-value" id="p1PlayerId">-</span></div>
+                    <div><span class="info-label">顯示名稱:</span><span class="info-value" id="p1DisplayName">-</span></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>2. 當前回合狀態</h3>
+                <div class="info" style="margin-bottom: 8px;">先按此取得 round/phase/status，再去「取得對手」、「出招」。</div>
+                <button onclick="getRoundInfo(1)">取得回合資訊</button>
+                <div class="info" id="p1RoundInfo" style="display: none;">
+                    <div><span class="info-label">回合數:</span><span class="info-value" id="p1RoundNumber">-</span></div>
+                    <div><span class="info-label">階段:</span><span class="info-value" id="p1Phase">-</span></div>
+                    <div><span class="info-label">狀態:</span><span class="info-value" id="p1RoundStatus">-</span></div>
+                </div>
+                <div class="waiting-indicator" id="p1Waiting" style="display: none;">
+                    ⏳ 等主持人公布結果中...
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>3. 取得本輪對手</h3>
+                <button onclick="getPair(1)">取得對手</button>
+                <div class="info" id="p1PairInfo" style="display: none;">
+                    <div><span class="info-label">對手:</span><span class="info-value" id="p1OpponentName">-</span></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>4. 出招</h3>
+                <div class="info" style="margin-bottom: 8px;">按前先確定已取得回合與對手資訊。</div>
+                <button class="choice-btn" onclick="submitAction(1, 'ACCELERATE')">⚡ 加速（ACCELERATE）</button>
+                <button class="choice-btn" onclick="submitAction(1, 'TURN')">🔄 轉彎（TURN）</button>
+            </div>
+
+            <div class="section">
+                <h3>5. 看結果</h3>
+                <button onclick="getResult(1)">取得本輪結果</button>
+                <div id="p1Results"></div>
+            </div>
+
+            <div class="section">
+                <h3>6. 留言（第 5-6 回合）</h3>
+                <textarea id="p1Message" placeholder="給對手的短訊..." rows="3"></textarea>
+                <button onclick="sendMessage(1)">送出留言</button>
+                <button onclick="getMessage(1)">查看對手留言</button>
+                <div class="message-box" id="p1MessageReceived" style="display: none;">
+                    <strong>來自對手：</strong>
+                    <div id="p1MessageContent"></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>7. 指示物（第 6 回合後）</h3>
+                <button onclick="getIndicator(1)">取得指示物</button>
+                <div class="info" id="p1IndicatorInfo" style="display: none;">
+                    <span class="info-label">符號:</span>
+                    <span class="indicator-symbol" id="p1Indicator">-</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- PLAYER 2 PANEL -->
+        <div class="panel">
+            <h2>👤 玩家 2</h2>
+
+            <div class="section">
+                <h3>1. 加入房間</h3>
+                <input type="text" id="p2Nickname" placeholder="輸入暱稱" value="Bob">
+                <input type="text" id="p2RoomCode" placeholder="輸入房號 Code">
+                <button onclick="joinRoom(2)">加入</button>
+                <div class="info" id="p2Info" style="display: none;">
+                    <div><span class="info-label">玩家 ID:</span><span class="info-value" id="p2PlayerId">-</span></div>
+                    <div><span class="info-label">顯示名稱:</span><span class="info-value" id="p2DisplayName">-</span></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>2. 當前回合狀態</h3>
+                <div class="info" style="margin-bottom: 8px;">先取得回合資訊，再依序取得對手 → 出招 → 看結果。</div>
+                <button onclick="getRoundInfo(2)">取得回合資訊</button>
+                <div class="info" id="p2RoundInfo" style="display: none;">
+                    <div><span class="info-label">回合數:</span><span class="info-value" id="p2RoundNumber">-</span></div>
+                    <div><span class="info-label">階段:</span><span class="info-value" id="p2Phase">-</span></div>
+                    <div><span class="info-label">狀態:</span><span class="info-value" id="p2RoundStatus">-</span></div>
+                </div>
+                <div class="waiting-indicator" id="p2Waiting" style="display: none;">
+                    ⏳ 等主持人公布結果中...
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>3. 取得本輪對手</h3>
+                <button onclick="getPair(2)">取得對手</button>
+                <div class="info" id="p2PairInfo" style="display: none;">
+                    <div><span class="info-label">對手:</span><span class="info-value" id="p2OpponentName">-</span></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>4. 出招</h3>
+                <div class="info" style="margin-bottom: 8px;">確認已取得回合與對手資訊。</div>
+                <button class="choice-btn" onclick="submitAction(2, 'ACCELERATE')">⚡ 加速（ACCELERATE）</button>
+                <button class="choice-btn" onclick="submitAction(2, 'TURN')">🔄 轉彎（TURN）</button>
+            </div>
+
+            <div class="section">
+                <h3>5. 看結果</h3>
+                <button onclick="getResult(2)">取得本輪結果</button>
+                <div id="p2Results"></div>
+            </div>
+
+            <div class="section">
+                <h3>6. 留言（第 5-6 回合）</h3>
+                <textarea id="p2Message" placeholder="給對手的短訊..." rows="3"></textarea>
+                <button onclick="sendMessage(2)">送出留言</button>
+                <button onclick="getMessage(2)">查看對手留言</button>
+                <div class="message-box" id="p2MessageReceived" style="display: none;">
+                    <strong>來自對手：</strong>
+                    <div id="p2MessageContent"></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>7. 指示物（第 6 回合後）</h3>
+                <button onclick="getIndicator(2)">取得指示物</button>
+                <div class="info" id="p2IndicatorInfo" style="display: none;">
+                    <span class="info-label">符號:</span>
+                    <span class="indicator-symbol" id="p2Indicator">-</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- QUICK FLOW PANEL -->
+        <div class="panel">
+            <h2>⚡ 快速測試步驟</h2>
+            <div class="section">
+                <h3>一鍵下一步</h3>
+                <div class="info" style="margin-bottom: 8px;">
+                    依序完成：開房 → 加入 → Round1 決策 → Round2 決策 → 跳到 Round5 留言 → Round6 分配指示物。
+                </div>
+                <div class="info" style="margin-bottom: 8px;">
+                    <strong>目前步驟：</strong> <span id="flowCurrent">-</span>
+                </div>
+                <button onclick="runNextFlowStep()" id="btnFlowNext">下一步</button>
+                <button onclick="resetFlow()">重置流程</button>
+            </div>
+            <div class="section">
+                <h3>步驟清單（可單獨執行）</h3>
+                <div class="flow-box" id="flowList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // Configuration
+        // ============================================
+        const API_BASE = 'http://localhost:8000/api';
+        const WS_BASE = 'ws://localhost:8000/ws';
+
+        // 快速流程定義（細拆）
+        const flowSequence = [
+            { key: 'createRoom', label: '開房間', action: async () => await createRoom() },
+            { key: 'joinPlayers', label: '玩家加入（P1/P2）', action: async () => await quickJoinPlayers() },
+            { key: 'startGame', label: '開始遊戲（進入 Round 1）', action: async () => await startGame() },
+            { key: 'round1Info', label: 'Round 1：取得回合與對手', action: async () => { await getRoundInfo(1); await getPair(1); await getRoundInfo(2); await getPair(2); } },
+            { key: 'round1Actions', label: 'Round 1：P1 加速 / P2 轉彎', action: async () => { await submitAction(1, 'ACCELERATE'); await submitAction(2, 'TURN'); } },
+            { key: 'round1Publish', label: 'Round 1：公布結果', action: async () => await publishRoundResults() },
+            { key: 'toRound2', label: '前往 Round 2', action: async () => await nextRound() },
+            { key: 'round2Info', label: 'Round 2：更新回合資訊（對手固定）', action: async () => { await getRoundInfo(1); await getRoundInfo(2); } },
+            { key: 'round2Actions', label: 'Round 2：P1 轉彎 / P2 加速', action: async () => { await submitAction(1, 'TURN'); await submitAction(2, 'ACCELERATE'); } },
+            { key: 'round2Publish', label: 'Round 2：公布結果', action: async () => await publishRoundResults() },
+            { key: 'pushToRound5', label: '推進到 Round 5（跳過中間）', action: async () => { while ((state.host.currentRoundNumber || 0) < 5) { await nextRound(); await delay(200); } } },
+            { key: 'round5Info', label: 'Round 5：更新回合資訊（對手固定）', action: async () => { await getRoundInfo(1); await getRoundInfo(2); } },
+            { key: 'round5Actions', label: 'Round 5：P1 加速 / P2 轉彎', action: async () => { await submitAction(1, 'ACCELERATE'); await submitAction(2, 'TURN'); } },
+            { key: 'round5Message', label: 'Round 5：互相留言', action: async () => { setDefaultMessage(1, 'Hi! 下一輪合作嗎？'); setDefaultMessage(2, '好啊，我們合作！'); await sendMessage(1); await sendMessage(2); await getMessage(1); await getMessage(2); } },
+            { key: 'round5Publish', label: 'Round 5：公布結果', action: async () => await publishRoundResults() },
+            { key: 'toRound6', label: '前往 Round 6', action: async () => await nextRound() },
+            { key: 'round6Info', label: 'Round 6：更新回合資訊（對手固定）', action: async () => { await getRoundInfo(1); await getRoundInfo(2); } },
+            { key: 'round6Actions', label: 'Round 6：P1 轉彎 / P2 加速', action: async () => { await submitAction(1, 'TURN'); await submitAction(2, 'ACCELERATE'); } },
+            { key: 'round6Publish', label: 'Round 6：公布結果並分配指示物', action: async () => { await publishRoundResults(); await assignIndicators(); if (state.player1.playerId) await getIndicator(1); if (state.player2.playerId) await getIndicator(2); } }
+        ];
+
+        // ============================================
+        // Global State
+        // ============================================
+        const initialFlowStatus = flowSequence.reduce((acc, step) => {
+            acc[step.key] = 'pending';
+            return acc;
+        }, {});
+
+        let state = {
+            host: {
+                roomId: null,
+                code: null,
+                playerId: null,
+                currentRoundNumber: null
+            },
+            player1: {
+                roomId: null,
+                playerId: null,
+                displayName: null,
+                currentRound: null
+            },
+            player2: {
+                roomId: null,
+                playerId: null,
+                displayName: null,
+                currentRound: null
+            },
+            ws: null,
+            wsConnected: false,
+            roundProgress: {
+                submitted: 0,
+                total: 0
+            },
+            messageSent: {
+                p1: {},
+                p2: {}
+            },
+            indicatorsAssigned: false,
+            firstPairFetched: {
+                p1: false,
+                p2: false
+            },
+            flowStatus: { ...initialFlowStatus },
+            flowIndex: 0
+        };
+
+        async function autoRoundStartActions(roundNumber, phase) {
+            // 自動取得回合資訊；固定對手只需首輪取得
+            if (state.player1.playerId) {
+                await getRoundInfo(1);
+                if (!state.firstPairFetched.p1) await getPair(1);
+                autoSendMessageIfNeeded(1, roundNumber, phase);
+            }
+            if (state.player2.playerId) {
+                await getRoundInfo(2);
+                if (!state.firstPairFetched.p2) await getPair(2);
+                autoSendMessageIfNeeded(2, roundNumber, phase);
+            }
+        }
+
+        async function autoSendMessageIfNeeded(playerNum, roundNumber, phase) {
+            const key = playerNum === 1 ? 'p1' : 'p2';
+            if (phase !== 'MESSAGE') return;
+            if (roundNumber < 5 || roundNumber > 6) return;
+            if (state.messageSent[key][roundNumber]) return;
+            const messageBox = document.getElementById(`p${playerNum}Message`);
+            if (messageBox && !messageBox.value) {
+                messageBox.value = roundNumber === 5 ? 'Hi! 下一輪合作嗎？' : '這輪繼續合作吧！';
+            }
+            await sendMessage(playerNum);
+            state.messageSent[key][roundNumber] = true;
+        }
+
+        // ============================================
+        // WebSocket Management
+        // ============================================
+        function connectWebSocket(roomId) {
+            if (state.ws) {
+                state.ws.close();
+            }
+
+            const wsUrl = `${WS_BASE}/${roomId}`;
+            logWS(`Connecting to ${wsUrl}...`);
+
+            state.ws = new WebSocket(wsUrl);
+
+            state.ws.onopen = () => {
+                state.wsConnected = true;
+                updateWSStatus(true);
+                logWS('✓ WebSocket connected', 'success');
+            };
+
+            state.ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                logWS(`◆ ${data.event_type}`, 'ws-event');
+                handleWSEvent(data);
+            };
+
+            state.ws.onerror = (error) => {
+                logWS('✗ WebSocket error', 'error');
+                console.error(error);
+            };
+
+            state.ws.onclose = () => {
+                state.wsConnected = false;
+                updateWSStatus(false);
+                logWS('✗ WebSocket disconnected', 'error');
+            };
+        }
+
+        function updateWSStatus(connected) {
+            const statusEl = document.getElementById('wsStatus');
+            if (connected) {
+                statusEl.textContent = 'WS: CONNECTED';
+                statusEl.className = 'ws-status ws-connected';
+            } else {
+                statusEl.textContent = 'WS: DISCONNECTED';
+                statusEl.className = 'ws-status ws-disconnected';
+            }
+        }
+
+        function handleWSEvent(data) {
+            const { event_type, data: eventData } = data;
+
+            switch (event_type) {
+                case 'ROOM_STARTED':
+                    logWS('🎮 Game started!');
+                    updateRoomStatus();
+                    document.getElementById('btnStartGame').disabled = true;
+                    document.getElementById('btnNextRound').disabled = false;
+                    document.getElementById('btnEndGame').disabled = false;
+                    break;
+
+                case 'ROUND_STARTED':
+                    logWS(`🔄 Round ${eventData.round_number} started (Phase: ${eventData.phase})`);
+                    state.host.currentRoundNumber = eventData.round_number;
+                    updateRoomStatus();
+                    updateRoundControlUI();
+                    // 重置進度
+                    state.roundProgress = { submitted: 0, total: 0 };
+                    updateProgressBar();
+                    // 隱藏等待提示
+                    document.getElementById('p1Waiting').style.display = 'none';
+                    document.getElementById('p2Waiting').style.display = 'none';
+                    // 清除本輪留言旗標
+                    state.messageSent.p1[eventData.round_number] = false;
+                    state.messageSent.p2[eventData.round_number] = false;
+                    // 自動取回合/配對
+                    autoRoundStartActions(eventData.round_number, eventData.phase);
+                    break;
+
+                case 'ACTION_SUBMITTED':
+                    logWS(`📊 Progress: ${eventData.submitted}/${eventData.total} players submitted`);
+                    state.roundProgress = {
+                        submitted: eventData.submitted,
+                        total: eventData.total
+                    };
+                    updateProgressBar();
+                    updateRoundControlUI();
+                    break;
+
+                case 'ROUND_READY':
+                    logWS(`✅ Round ${eventData.round_number} ready to publish!`, 'success');
+                    document.getElementById('btnPublishRound').disabled = false;
+                    document.getElementById('roundControlStatus').textContent = 'READY_TO_PUBLISH';
+                    // 顯示等待提示
+                    document.getElementById('p1Waiting').style.display = 'block';
+                    document.getElementById('p2Waiting').style.display = 'block';
+                    break;
+
+                case 'ROUND_ENDED':
+                    const skippedText = eventData.skipped ? ' (SKIPPED)' : '';
+                    logWS(`✓ Round ${eventData.round_number} ended${skippedText}`);
+                    updateRoomStatus();
+                    updateRoundControlUI();
+                    document.getElementById('btnPublishRound').disabled = true;
+                    document.getElementById('btnSkipRound').disabled = true;
+                    // 隱藏等待提示
+                    document.getElementById('p1Waiting').style.display = 'none';
+                    document.getElementById('p2Waiting').style.display = 'none';
+                    // 自動取得結果
+                    setTimeout(() => {
+                        if (state.player1.playerId) getResult(1);
+                        if (state.player2.playerId) getResult(2);
+                    }, 500);
+                    // 自動分配指示物（Round 6 之後）
+                    if (!state.indicatorsAssigned && eventData.round_number >= 6 && state.host.roomId) {
+                        assignIndicators();
+                        state.indicatorsAssigned = true;
+                    }
+                    break;
+
+                case 'MESSAGE_PHASE':
+                    logWS('💬 Message phase activated');
+                    break;
+
+                case 'INDICATORS_ASSIGNED':
+                    logWS('🎯 Indicators assigned');
+                    if (state.player1.playerId) getIndicator(1);
+                    if (state.player2.playerId) getIndicator(2);
+                    break;
+
+                case 'GAME_ENDED':
+                    logWS('🏁 Game ended!');
+                    updateRoomStatus();
+                    document.getElementById('btnNextRound').disabled = true;
+                    document.getElementById('btnEndGame').disabled = true;
+                    // Auto-fetch game summary
+                    setTimeout(getGameSummary, 500);
+                    break;
+            }
+        }
+
+        function updateProgressBar() {
+            const { submitted, total } = state.roundProgress;
+            const percentage = total > 0 ? (submitted / total * 100) : 0;
+            const progressFill = document.getElementById('progressFill');
+
+            if (progressFill) {
+                progressFill.style.width = `${percentage}%`;
+                progressFill.textContent = `${submitted}/${total}`;
+            }
+        }
+
+        function updateRoundControlUI() {
+            const infoEl = document.getElementById('roundControlInfo');
+            if (state.host.currentRoundNumber) {
+                infoEl.style.display = 'block';
+                document.getElementById('roundControlNumber').textContent = state.host.currentRoundNumber;
+                document.getElementById('btnSkipRound').disabled = false;
+            }
+        }
+
+        // 快速流程狀態 UI
+        function setFlowStatus(step, status) {
+            state.flowStatus[step] = status;
+            const badge = document.querySelector(`[data-step="${step}"]`);
+            if (!badge) return;
+            badge.className = `badge badge-${status}`;
+            const textMap = {
+                pending: '待執行',
+                running: '執行中',
+                done: '完成',
+                error: '失敗'
+            };
+            badge.textContent = textMap[status] || status;
+        }
+
+        function resetFlow() {
+            Object.keys(state.flowStatus).forEach(step => setFlowStatus(step, 'pending'));
+            state.flowIndex = 0;
+            updateFlowCurrent();
+            logWS('快速流程狀態已重置');
+        }
+
+        function updateFlowCurrent() {
+            const current = flowSequence[state.flowIndex];
+            const el = document.getElementById('flowCurrent');
+            if (!el) return;
+            el.textContent = current ? `${state.flowIndex + 1}. ${current.label}` : '全部完成';
+        }
+
+        // ============================================
+        // Logging
+        // ============================================
+        function logWS(message, type = 'ws-event') {
+            const logEl = document.getElementById('wsLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${timestamp}] ${message}`;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function logAPI(message, type = 'api-call') {
+            console.log(`[API] ${message}`);
+        }
+
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // ============================================
+        // Host Functions
+        // ============================================
+        async function createRoom() {
+            try {
+                logAPI('POST /rooms');
+                const response = await fetch(`${API_BASE}/rooms`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+
+                const data = await response.json();
+
+                state.host.roomId = data.room_id;
+                state.host.code = data.code;
+                state.host.playerId = data.host_player_id;
+
+                document.getElementById('hostRoomId').textContent = data.room_id;
+                document.getElementById('hostCode').textContent = data.code;
+                document.getElementById('hostPlayerId').textContent = data.host_player_id;
+                document.getElementById('hostInfo').style.display = 'block';
+
+                // Auto-fill room codes for players
+                document.getElementById('p1RoomCode').value = data.code;
+                document.getElementById('p2RoomCode').value = data.code;
+
+                document.getElementById('btnStartGame').disabled = false;
+                document.getElementById('btnAssignIndicators').disabled = false;
+
+                // Connect WebSocket
+                connectWebSocket(data.room_id);
+
+                logWS(`Room created: ${data.code}`, 'success');
+
+                // 啟用快速按鈕
+                document.getElementById('btnFillRoom').disabled = false;
+                document.getElementById('btnQuickJoin').disabled = false;
+                document.getElementById('btnQuickSubmit').disabled = false;
+                setFlowStatus('createRoom', 'done');
+                return data;
+            } catch (error) {
+                logWS(`Failed to create room: ${error.message}`, 'error');
+                setFlowStatus('createRoom', 'error');
+                return null;
+            }
+        }
+
+        async function startGame() {
+            if (!state.host.roomId) return;
+
+            try {
+                logAPI('POST /rooms/{room_id}/start');
+                const response = await fetch(`${API_BASE}/rooms/${state.host.roomId}/start`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                logWS('Game start request sent', 'success');
+                setFlowStatus('startGame', 'done');
+                return true;
+            } catch (error) {
+                logWS(`Failed to start game: ${error.message}`, 'error');
+                setFlowStatus('startGame', 'error');
+                return false;
+            }
+        }
+
+        async function nextRound() {
+            if (!state.host.roomId) return;
+
+            try {
+                logAPI('POST /rooms/{room_id}/rounds/next');
+                const response = await fetch(`${API_BASE}/rooms/${state.host.roomId}/rounds/next`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                const data = await response.json();
+                logWS(`Next round request sent: Round ${data.round_number}`, 'success');
+                setFlowStatus('nextRound', 'done');
+                return data;
+            } catch (error) {
+                logWS(`Failed to start next round: ${error.message}`, 'error');
+                setFlowStatus('nextRound', 'error');
+                return null;
+            }
+        }
+
+        async function publishRoundResults() {
+            if (!state.host.roomId || !state.host.currentRoundNumber) return;
+
+            if (!confirm(`Publish results for Round ${state.host.currentRoundNumber}?`)) {
+                return;
+            }
+
+            try {
+                logAPI(`POST /rooms/{room_id}/rounds/${state.host.currentRoundNumber}/publish`);
+                const response = await fetch(
+                    `${API_BASE}/rooms/${state.host.roomId}/rounds/${state.host.currentRoundNumber}/publish`,
+                    { method: 'POST' }
+                );
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                logWS(`Round ${state.host.currentRoundNumber} results published`, 'success');
+                setFlowStatus('publish', 'done');
+                return true;
+            } catch (error) {
+                logWS(`Failed to publish results: ${error.message}`, 'error');
+                setFlowStatus('publish', 'error');
+                return false;
+            }
+        }
+
+        async function skipRound() {
+            if (!state.host.roomId || !state.host.currentRoundNumber) return;
+
+            if (!confirm(`Skip Round ${state.host.currentRoundNumber}? Unsubmitted players will auto-choose TURN.`)) {
+                return;
+            }
+
+            try {
+                logAPI(`POST /rooms/{room_id}/rounds/${state.host.currentRoundNumber}/skip`);
+                const response = await fetch(
+                    `${API_BASE}/rooms/${state.host.roomId}/rounds/${state.host.currentRoundNumber}/skip`,
+                    { method: 'POST' }
+                );
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                logWS(`Round ${state.host.currentRoundNumber} skipped`, 'success');
+            } catch (error) {
+                logWS(`Failed to skip round: ${error.message}`, 'error');
+            }
+        }
+
+        async function endGame() {
+            if (!state.host.roomId) return;
+
+            try {
+                logAPI('POST /rooms/{room_id}/end');
+                const response = await fetch(`${API_BASE}/rooms/${state.host.roomId}/end`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                logWS('Game end request sent', 'success');
+            } catch (error) {
+                logWS(`Failed to end game: ${error.message}`, 'error');
+            }
+        }
+
+        async function updateRoomStatus() {
+            if (!state.host.code) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/rooms/${state.host.code}`);
+                const data = await response.json();
+
+                document.getElementById('roomStatus').textContent = data.status.toUpperCase();
+                document.getElementById('currentRound').textContent = data.current_round;
+                document.getElementById('playerCount').textContent = data.player_count;
+            } catch (error) {
+                console.error('Failed to update room status:', error);
+            }
+        }
+
+        async function assignIndicators() {
+            if (!state.host.roomId) return;
+
+            try {
+                logAPI('POST /rooms/{room_id}/indicators/assign');
+                const response = await fetch(`${API_BASE}/rooms/${state.host.roomId}/indicators/assign`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                logWS('Indicators assigned', 'success');
+            } catch (error) {
+                logWS(`Failed to assign indicators: ${error.message}`, 'error');
+            }
+        }
+
+        // ============================================
+        // Player Functions
+        // ============================================
+        async function joinRoom(playerNum) {
+            const nickname = document.getElementById(`p${playerNum}Nickname`).value;
+            const roomCode = document.getElementById(`p${playerNum}RoomCode`).value;
+
+            if (!nickname || !roomCode) {
+                alert('Please enter nickname and room code');
+                return;
+            }
+
+            try {
+                logAPI(`POST /rooms/${roomCode}/join`);
+                const response = await fetch(`${API_BASE}/rooms/${roomCode}/join`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nickname })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                const data = await response.json();
+
+                state[`player${playerNum}`].roomId = data.room_id;
+                state[`player${playerNum}`].playerId = data.player_id;
+                state[`player${playerNum}`].displayName = data.display_name;
+
+                document.getElementById(`p${playerNum}PlayerId`).textContent = data.player_id;
+                document.getElementById(`p${playerNum}DisplayName`).textContent = data.display_name;
+                document.getElementById(`p${playerNum}Info`).style.display = 'block';
+
+                logWS(`Player ${playerNum} joined: ${data.display_name}`, 'success');
+
+                // Update room status
+                updateRoomStatus();
+                return true;
+            } catch (error) {
+                logWS(`Player ${playerNum} failed to join: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function getRoundInfo(playerNum) {
+            const roomId = state[`player${playerNum}`].roomId;
+            if (!roomId) return;
+
+            try {
+                logAPI('GET /rooms/{room_id}/rounds/current');
+                const response = await fetch(`${API_BASE}/rooms/${roomId}/rounds/current`);
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                const data = await response.json();
+
+                state[`player${playerNum}`].currentRound = data.round_number;
+
+                document.getElementById(`p${playerNum}RoundNumber`).textContent = data.round_number;
+                document.getElementById(`p${playerNum}Phase`).textContent = data.phase;
+                document.getElementById(`p${playerNum}RoundStatus`).textContent = data.status;
+                document.getElementById(`p${playerNum}RoundInfo`).style.display = 'block';
+
+                const waitingEl = document.getElementById(`p${playerNum}Waiting`);
+                // READY_TO_PUBLISH 時顯示等待提示，其他狀態關閉
+                if (data.status === 'ready_to_publish') {
+                    waitingEl.style.display = 'block';
+                } else {
+                    waitingEl.style.display = 'none';
+                }
+                // 若已結束但尚未拿到結果，幫忙自動拉一次
+                if (data.status === 'completed') {
+                    await getResult(playerNum);
+                }
+
+                logWS(`Player ${playerNum} round info updated`, 'success');
+            } catch (error) {
+                logWS(`Player ${playerNum} failed to get round info: ${error.message}`, 'error');
+            }
+        }
+
+        // ============================================
+        // Quick helpers for testing (auto-fill / auto-join / auto-action)
+        // ============================================
+        function fillRoomCode() {
+            if (!state.host.code) {
+                alert('請先建立房間');
+                return;
+            }
+            document.getElementById('p1RoomCode').value = state.host.code;
+            document.getElementById('p2RoomCode').value = state.host.code;
+            logWS(`已套用房號 ${state.host.code} 到兩位玩家`, 'success');
+        }
+
+        async function quickJoinPlayers() {
+            if (!state.host.code) {
+                alert('請先建立房間');
+                return;
+            }
+            document.getElementById('p1RoomCode').value = state.host.code;
+            document.getElementById('p2RoomCode').value = state.host.code;
+            // 使用預設暱稱 Alice / Bob
+            const r1 = await joinRoom(1);
+            const r2 = await joinRoom(2);
+            if (r1 && r2) {
+                setFlowStatus('joinPlayers', 'done');
+                return true;
+            } else {
+                setFlowStatus('joinPlayers', 'error');
+                throw new Error('玩家加入失敗');
+            }
+        }
+
+        async function quickSubmitChoices() {
+            // 需先取得回合資訊
+            await getRoundInfo(1);
+            await getRoundInfo(2);
+            await submitAction(1, 'ACCELERATE');
+            await submitAction(2, 'TURN');
+        }
+
+        // ============================================
+        // Flow runner (顯示目前步驟並觸發對應動作)
+        // ============================================
+        async function runFlowStep(step) {
+            try {
+                setFlowStatus(step, 'running');
+                let result = true;
+                switch (step) {
+                    case 'createRoom':
+                        result = await createRoom();
+                        break;
+                    case 'joinPlayers':
+                        result = await quickJoinPlayers();
+                        break;
+                    case 'startGame':
+                        result = await startGame();
+                        break;
+                    case 'round1Info':
+                        await getRoundInfo(1);
+                        await getPair(1);
+                        await getRoundInfo(2);
+                        await getPair(2);
+                        break;
+                    case 'round2Info':
+                    case 'round5Info':
+                    case 'round6Info':
+                        await getRoundInfo(1);
+                        await getRoundInfo(2);
+                        break;
+                    case 'round1Actions':
+                        await submitAction(1, 'ACCELERATE');
+                        await submitAction(2, 'TURN');
+                        break;
+                    case 'round2Actions':
+                        await submitAction(1, 'TURN');
+                        await submitAction(2, 'ACCELERATE');
+                        break;
+                    case 'round5Actions':
+                        await submitAction(1, 'ACCELERATE');
+                        await submitAction(2, 'TURN');
+                        break;
+                    case 'round5Message':
+                        setDefaultMessage(1, 'Hi! 下一輪合作嗎？');
+                        setDefaultMessage(2, '好啊，我們合作！');
+                        await sendMessage(1);
+                        await sendMessage(2);
+                        await getMessage(1);
+                        await getMessage(2);
+                        break;
+                    case 'round1Publish':
+                    case 'round2Publish':
+                    case 'round5Publish':
+                        result = await publishRoundResults();
+                        break;
+                    case 'toRound2':
+                    case 'toRound6':
+                        result = await nextRound();
+                        break;
+                    case 'pushToRound5':
+                        while ((state.host.currentRoundNumber || 0) < 5) {
+                            await nextRound();
+                            await delay(200);
+                        }
+                        break;
+                    case 'round6Actions':
+                        await submitAction(1, 'TURN');
+                        await submitAction(2, 'ACCELERATE');
+                        break;
+                    case 'round6Publish':
+                        await publishRoundResults();
+                        await assignIndicators();
+                        if (state.player1.playerId) await getIndicator(1);
+                        if (state.player2.playerId) await getIndicator(2);
+                        break;
+                }
+                if (result === false || result === null) {
+                    throw new Error('step failed');
+                }
+                setFlowStatus(step, 'done');
+                // 自動推進指標
+                const nextIndex = flowSequence.findIndex(s => s.key === step) + 1;
+                state.flowIndex = nextIndex;
+                updateFlowCurrent();
+            } catch (e) {
+                console.error(e);
+                setFlowStatus(step, 'error');
+            }
+        }
+
+        async function runNextFlowStep() {
+            if (state.flowIndex >= flowSequence.length) {
+                logWS('所有流程已完成');
+                return;
+            }
+            const step = flowSequence[state.flowIndex];
+            await runFlowStep(step.key);
+        }
+
+        async function getPair(playerNum) {
+            const roomId = state[`player${playerNum}`].roomId;
+            const playerId = state[`player${playerNum}`].playerId;
+            const roundNumber = state[`player${playerNum}`].currentRound;
+
+            if (!roomId || !playerId || !roundNumber) {
+                alert('Please get round info first');
+                return;
+            }
+
+            try {
+                logAPI(`GET /rooms/{room_id}/rounds/${roundNumber}/pair`);
+                const response = await fetch(
+                    `${API_BASE}/rooms/${roomId}/rounds/${roundNumber}/pair?player_id=${playerId}`
+                );
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                const data = await response.json();
+
+                document.getElementById(`p${playerNum}OpponentName`).textContent = data.opponent_display_name;
+                document.getElementById(`p${playerNum}PairInfo`).style.display = 'block';
+                state.firstPairFetched[playerNum === 1 ? 'p1' : 'p2'] = true;
+
+                logWS(`Player ${playerNum} opponent: ${data.opponent_display_name}`, 'success');
+            } catch (error) {
+                logWS(`Player ${playerNum} failed to get pair: ${error.message}`, 'error');
+            }
+        }
+
+        async function submitAction(playerNum, choice) {
+            const roomId = state[`player${playerNum}`].roomId;
+            const playerId = state[`player${playerNum}`].playerId;
+            const roundNumber = state[`player${playerNum}`].currentRound;
+            const choiceValue = choice.toUpperCase();
+
+            if (!roomId || !playerId || !roundNumber) {
+                alert('Please get round info first');
+                return;
+            }
+
+            try {
+                logAPI(`POST /rooms/{room_id}/rounds/${roundNumber}/action`);
+                const response = await fetch(
+                    `${API_BASE}/rooms/${roomId}/rounds/${roundNumber}/action`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            player_id: playerId,
+                            choice: choiceValue
+                        })
+                    }
+                );
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                logWS(`Player ${playerNum} chose: ${choiceValue}`, 'success');
+            } catch (error) {
+                logWS(`Player ${playerNum} failed to submit action: ${error.message}`, 'error');
+            }
+        }
+
+        async function getResult(playerNum) {
+            const roomId = state[`player${playerNum}`].roomId;
+            const playerId = state[`player${playerNum}`].playerId;
+            const roundNumber = state[`player${playerNum}`].currentRound;
+
+            if (!roomId || !playerId || !roundNumber) {
+                alert('Please get round info first');
+                return;
+            }
+
+            try {
+                logAPI(`GET /rooms/{room_id}/rounds/${roundNumber}/result`);
+                const response = await fetch(
+                    `${API_BASE}/rooms/${roomId}/rounds/${roundNumber}/result?player_id=${playerId}`
+                );
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                const data = await response.json();
+
+                const resultBox = document.createElement('div');
+                resultBox.className = 'result-box';
+                resultBox.innerHTML = `
+                    <h4>Round ${roundNumber} Result</h4>
+                    <div><strong>Opponent:</strong> ${data.opponent_display_name}</div>
+                    <div><strong>Your Choice:</strong> ${data.your_choice}</div>
+                    <div><strong>Opponent Choice:</strong> ${data.opponent_choice}</div>
+                    <div class="${data.your_payoff >= 0 ? 'payoff-positive' : 'payoff-negative'}">
+                        <strong>Your Payoff:</strong> ${data.your_payoff}
+                    </div>
+                `;
+
+                const resultsContainer = document.getElementById(`p${playerNum}Results`);
+                resultsContainer.insertBefore(resultBox, resultsContainer.firstChild);
+
+                logWS(`Player ${playerNum} got result for round ${roundNumber}`, 'success');
+            } catch (error) {
+                logWS(`Player ${playerNum} failed to get result: ${error.message}`, 'error');
+            }
+        }
+
+        async function sendMessage(playerNum) {
+            const roomId = state[`player${playerNum}`].roomId;
+            const playerId = state[`player${playerNum}`].playerId;
+            const roundNumber = state[`player${playerNum}`].currentRound;
+            const content = document.getElementById(`p${playerNum}Message`).value;
+
+            if (!roomId || !playerId || !roundNumber) {
+                alert('Please get round info first');
+                return;
+            }
+
+            if (!content) {
+                alert('Please enter a message');
+                return;
+            }
+
+            try {
+                logAPI(`POST /rooms/{room_id}/rounds/${roundNumber}/message`);
+                const response = await fetch(
+                    `${API_BASE}/rooms/${roomId}/rounds/${roundNumber}/message`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            sender_id: playerId,
+                            content: content
+                        })
+                    }
+                );
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                document.getElementById(`p${playerNum}Message`).value = '';
+                logWS(`Player ${playerNum} sent message`, 'success');
+            } catch (error) {
+                logWS(`Player ${playerNum} failed to send message: ${error.message}`, 'error');
+            }
+        }
+
+        function setDefaultMessage(playerNum, text) {
+            const box = document.getElementById(`p${playerNum}Message`);
+            if (box && !box.value) {
+                box.value = text;
+            }
+        }
+
+        async function getMessage(playerNum) {
+            const roomId = state[`player${playerNum}`].roomId;
+            const playerId = state[`player${playerNum}`].playerId;
+            const roundNumber = state[`player${playerNum}`].currentRound;
+
+            if (!roomId || !playerId || !roundNumber) {
+                alert('Please get round info first');
+                return;
+            }
+
+            try {
+                logAPI(`GET /rooms/{room_id}/rounds/${roundNumber}/message`);
+                const response = await fetch(
+                    `${API_BASE}/rooms/${roomId}/rounds/${roundNumber}/message?player_id=${playerId}`
+                );
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                const data = await response.json();
+
+                document.getElementById(`p${playerNum}MessageContent`).textContent = data.content;
+                document.getElementById(`p${playerNum}MessageReceived`).style.display = 'block';
+
+                logWS(`Player ${playerNum} received message`, 'success');
+            } catch (error) {
+                logWS(`Player ${playerNum} failed to get message: ${error.message}`, 'error');
+            }
+        }
+
+        async function getIndicator(playerNum) {
+            const roomId = state[`player${playerNum}`].roomId;
+            const playerId = state[`player${playerNum}`].playerId;
+
+            if (!roomId || !playerId) {
+                alert('Please join room first');
+                return;
+            }
+
+            try {
+                logAPI(`GET /rooms/{room_id}/indicator`);
+                const response = await fetch(
+                    `${API_BASE}/rooms/${roomId}/indicator?player_id=${playerId}`
+                );
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                const data = await response.json();
+
+                document.getElementById(`p${playerNum}Indicator`).textContent = data.symbol;
+                document.getElementById(`p${playerNum}IndicatorInfo`).style.display = 'block';
+
+                logWS(`Player ${playerNum} indicator: ${data.symbol}`, 'success');
+            } catch (error) {
+                logWS(`Player ${playerNum} failed to get indicator: ${error.message}`, 'error');
+            }
+        }
+
+        async function getGameSummary() {
+            if (!state.host.roomId) return;
+
+            try {
+                logAPI('GET /rooms/{room_id}/summary');
+                const response = await fetch(`${API_BASE}/rooms/${state.host.roomId}/summary`);
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+
+                const data = await response.json();
+
+                // Build summary HTML
+                let html = '<div class="result-box"><h4>🏆 Game Summary</h4>';
+
+                // Rankings
+                html += '<h5 style="color: #00ffff; margin: 15px 0 10px 0;">Rankings</h5>';
+                data.players.forEach((player, index) => {
+                    const rankEmoji = index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉';
+                    const payoffClass = player.total_payoff >= 0 ? 'payoff-positive' : 'payoff-negative';
+                    html += `<div style="margin: 5px 0;">
+                        ${rankEmoji} <strong>${player.display_name}</strong>:
+                        <span class="${payoffClass}">${player.total_payoff}</span>
+                    </div>`;
+                });
+
+                // Stats
+                html += '<h5 style="color: #00ffff; margin: 15px 0 10px 0;">Strategy Statistics</h5>';
+                html += `<div style="margin: 5px 0;">
+                    ⚡ Accelerate: <span class="info-value">${(data.stats.accelerate_ratio * 100).toFixed(1)}%</span>
+                </div>`;
+                html += `<div style="margin: 5px 0;">
+                    🔄 Turn: <span class="info-value">${(data.stats.turn_ratio * 100).toFixed(1)}%</span>
+                </div>`;
+
+                html += '</div>';
+
+                document.getElementById('gameSummary').innerHTML = html;
+                logWS('Game summary loaded', 'success');
+            } catch (error) {
+                logWS(`Failed to get game summary: ${error.message}`, 'error');
+            }
+        }
+
+        // ============================================
+        // Initialize
+        // ============================================
+        function renderFlowList() {
+            const container = document.getElementById('flowList');
+            if (!container) return;
+            container.innerHTML = '';
+            flowSequence.forEach((step, idx) => {
+                const row = document.createElement('div');
+                row.className = 'flow-row';
+                row.innerHTML = `
+                    <div class="flow-step">${idx + 1}</div>
+                    <div>${step.label}</div>
+                    <span class="badge badge-pending" data-step="${step.key}">待執行</span>
+                    <button onclick="runFlowStep('${step.key}')">執行</button>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        renderFlowList();
+        updateFlowCurrent();
+        logWS('測試控台 v2.0 初始化（支援延遲公布）');
+        logWS('請先點「建立房間」開始流程或用快速步驟的「下一步」');
+    </script>
+</body>
+</html>

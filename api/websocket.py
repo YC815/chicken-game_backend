@@ -91,7 +91,9 @@ class ConnectionManager:
 
         dead_connections = set()
 
-        for connection in self.active_connections[room_id]:
+        # Create snapshot to avoid "Set changed size during iteration"
+        connections_snapshot = list(self.active_connections[room_id])
+        for connection in connections_snapshot:
             try:
                 # 加入 timeout（5 秒），避免某個連線卡住整個廣播
                 await asyncio.wait_for(
@@ -153,7 +155,7 @@ async def broadcast_event(room_id: UUID, event_type: str, data: dict = None):
         room_id=room_id,
         data=data or {}
     )
-    await manager.broadcast_to_room(room_id, event.model_dump())
+    await manager.broadcast_to_room(room_id, event.model_dump(mode='json'))
 
 
 # Export event types for convenience
