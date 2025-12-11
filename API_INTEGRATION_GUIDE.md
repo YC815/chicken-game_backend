@@ -66,7 +66,7 @@ curl -X POST http://localhost:8000/api/rooms/ABC123/join \
 {
   "player_id": "770e8400-e29b-41d4-a716-446655440001",
   "room_id": "550e8400-e29b-41d4-a716-446655440000",
-  "display_name": "狐狸 1"
+  "display_name": "Alice"
 }
 ```
 
@@ -133,7 +133,7 @@ curl "http://localhost:8000/api/rooms/550e8400-e29b-41d4-a716-446655440000/round
 ```json
 {
   "opponent_id": "880e8400-e29b-41d4-a716-446655440002",
-  "opponent_display_name": "狐狸 2"
+  "opponent_display_name": "Bob"
 }
 ```
 
@@ -186,7 +186,7 @@ curl "http://localhost:8000/api/rooms/550e8400-e29b-41d4-a716-446655440000/round
 **Response:**
 ```json
 {
-  "opponent_display_name": "狐狸 2",
+  "opponent_display_name": "Bob",
   "your_choice": "ACCELERATE",
   "opponent_choice": "TURN",
   "your_payoff": 10,
@@ -239,8 +239,8 @@ curl http://localhost:8000/api/rooms/550e8400-e29b-41d4-a716-446655440000/summar
 ```json
 {
   "players": [
-    {"display_name": "狐狸 1", "total_payoff": 25},
-    {"display_name": "狐狸 2", "total_payoff": 18}
+    {"display_name": "Alice", "total_payoff": 25},
+    {"display_name": "Bob", "total_payoff": 18}
   ],
   "stats": {
     "accelerate_ratio": 0.65,
@@ -527,8 +527,8 @@ All critical operations are idempotent:
 ```json
 {
   "players": [
-    {"display_name": "狐狸 1", "total_payoff": 25},
-    {"display_name": "狐狸 2", "total_payoff": 18}
+    {"display_name": "Alice", "total_payoff": 25},
+    {"display_name": "Bob", "total_payoff": 18}
   ],
   "stats": {
     "accelerate_ratio": 0.65,
@@ -568,6 +568,83 @@ All critical operations are idempotent:
 
 ---
 
+#### `DELETE /api/rooms/{room_id}`
+**Purpose:** Delete a room and all related data (host/admin endpoint)
+
+**Response:**
+```json
+{
+  "status": "deleted",
+  "room_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**Side Effects:**
+- Room is permanently deleted
+- All related data is cascade deleted:
+  - Players
+  - Rounds
+  - Actions
+  - Messages
+  - Indicators
+  - Event logs
+
+**Notes:**
+- This operation is irreversible
+- Use with caution
+- Automatically happens via background cleanup task (see Background Cleanup section)
+
+**Errors:**
+- `404 Room not found`: Invalid room_id
+
+---
+
+#### `GET /api/rooms` (Admin)
+**Purpose:** List all rooms (for debugging/admin)
+
+**Query Parameters:**
+- `status` (optional): Filter by status (WAITING/PLAYING/FINISHED)
+- `limit` (optional): Max results (default: 50, max: 200)
+- `offset` (optional): Pagination offset (default: 0)
+
+**Response:**
+```json
+{
+  "rooms": [
+    {
+      "room_id": "550e8400-e29b-41d4-a716-446655440000",
+      "code": "ABC123",
+      "status": "WAITING",
+      "current_round": 0,
+      "player_count": 2,
+      "created_at": "2024-01-15T10:30:00",
+      "updated_at": "2024-01-15T10:35:00"
+    }
+  ],
+  "total": 1,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+**Notes:**
+- Use for debugging or admin dashboard
+- Returns rooms sorted by `updated_at` (descending, newest first)
+
+---
+
+### Background Cleanup
+
+The backend automatically cleans up old rooms to prevent database bloat:
+
+- **Interval**: Every 6 hours
+- **FINISHED rooms**: Deleted after 24 hours of inactivity (`updated_at` < 24h ago)
+- **WAITING/PLAYING rooms**: Deleted after 2 hours of inactivity (`updated_at` < 2h ago)
+
+This ensures that abandoned rooms don't accumulate indefinitely.
+
+---
+
 ### Player Management
 
 #### `POST /api/rooms/{code}/join`
@@ -585,13 +662,13 @@ All critical operations are idempotent:
 {
   "player_id": "770e8400-e29b-41d4-a716-446655440001",
   "room_id": "550e8400-e29b-41d4-a716-446655440000",
-  "display_name": "狐狸 1"
+  "display_name": "Alice"
 }
 ```
 
 **Notes:**
 - `nickname`: Player's chosen name (1-50 chars)
-- `display_name`: Auto-generated name (e.g., "狐狸 1") used in game UI
+- `display_name`: Same string as `nickname`, returned for convenience/UI rendering
 - Can only join if room status is `WAITING`
 
 **Errors:**
@@ -635,7 +712,7 @@ curl "http://localhost:8000/api/rooms/{room_id}/rounds/1/pair?player_id=770e8400
 ```json
 {
   "opponent_id": "880e8400-e29b-41d4-a716-446655440002",
-  "opponent_display_name": "狐狸 2"
+  "opponent_display_name": "Bob"
 }
 ```
 
@@ -730,7 +807,7 @@ curl "http://localhost:8000/api/rooms/{room_id}/rounds/1/pair?player_id=770e8400
 **Response:**
 ```json
 {
-  "opponent_display_name": "狐狸 2",
+  "opponent_display_name": "Bob",
   "your_choice": "ACCELERATE",
   "opponent_choice": "TURN",
   "your_payoff": 10,
@@ -873,7 +950,7 @@ curl "http://localhost:8000/api/rooms/{room_id}/rounds/1/pair?player_id=770e8400
       "player_count": 6
     },
     "players": [
-      {"player_id": "p1", "display_name": "狐狸 1", "is_host": false}
+      {"player_id": "p1", "display_name": "Alice", "is_host": false}
     ],
     "round": {
       "round_number": 2,
@@ -883,7 +960,7 @@ curl "http://localhost:8000/api/rooms/{room_id}/rounds/1/pair?player_id=770e8400
       "total_players": 6,
       "your_choice": "ACCELERATE",
       "opponent_choice": "TURN",
-      "opponent_display_name": "狐狸 2",
+      "opponent_display_name": "Bob",
       "your_payoff": 10,
       "opponent_payoff": -3
     },

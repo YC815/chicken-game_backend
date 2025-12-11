@@ -43,6 +43,94 @@ router = APIRouter(prefix="/api/rooms", tags=["rooms"])
 logger = logging.getLogger(__name__)
 
 
+@router.get("", response_model=dict)
+def list_rooms(
+    status: str | None = Query(None, description="Filter by status (WAITING/PLAYING/FINISHED)"),
+    limit: int = Query(50, ge=1, le=200, description="Max results per page"),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
+    db: Session = Depends(get_db)
+):
+    """
+    列出所有房間（Admin/Debug endpoint）
+
+    用途：
+    - 管理後台列出所有房間
+    - 偵錯時查看房間狀態
+    - 批次清理房間
+
+    參數：
+        status: 可選的狀態過濾（WAITING/PLAYING/FINISHED）
+        limit: 每頁最大結果數（預設 50，最大 200）
+        offset: 分頁偏移量（預設 0）
+
+    返回：
+        - rooms: 房間列表（按 updated_at 降序排列，最新的在前）
+            - room_id: 房間 UUID
+            - code: 房間代碼
+            - status: 房間狀態
+            - current_round: 當前回合數
+            - player_count: 玩家數量（不含 Host）
+            - created_at: 建立時間
+            - updated_at: 最後更新時間
+        - total: 總房間數（符合過濾條件）
+        - limit: 當前分頁大小
+        - offset: 當前偏移量
+
+    範例：
+        GET /api/rooms?status=WAITING&limit=10&offset=0
+        GET /api/rooms?limit=100
+    """
+    try:
+        from models import Room, Player
+
+        # 建立查詢
+        query = db.query(Room)
+
+        # 狀態過濾
+        if status:
+            status_upper = status.upper()
+            if status_upper not in ["WAITING", "PLAYING", "FINISHED"]:
+                raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
+            query = query.filter(Room.status == status_upper)
+
+        # 計算總數
+        total = query.count()
+
+        # 排序和分頁
+        rooms = query.order_by(Room.updated_at.desc()).offset(offset).limit(limit).all()
+
+        # 組裝回應
+        room_list = []
+        for room in rooms:
+            player_count = db.query(Player).filter(
+                Player.room_id == room.id,
+                Player.is_host == False
+            ).count()
+
+            room_list.append({
+                "room_id": room.id,
+                "code": room.code,
+                "status": room.status,
+                "current_round": room.current_round,
+                "player_count": player_count,
+                "created_at": room.created_at.isoformat(),
+                "updated_at": room.updated_at.isoformat()
+            })
+
+        return {
+            "rooms": room_list,
+            "total": total,
+            "limit": limit,
+            "offset": offset
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to list rooms: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal error")
+
+
 @router.post("", response_model=RoomResponse)
 def create_room(room_create: RoomCreate, db: Session = Depends(get_db)):
     """
@@ -351,4 +439,48 @@ def get_events_since(
 
     except Exception as e:
         logger.error(f"Failed to get events: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal error")
+
+
+@router.delete("/{room_id}")
+def delete_room(room_id: str, db: Session = Depends(get_db)):
+    """
+    刪除房間（Host endpoint）
+
+    用途：
+    - 清理不需要的房間
+    - 釋放資料庫空間
+    - 所有相關資料（Players, Rounds, Actions 等）會自動級聯刪除
+
+    參數：
+        room_id: 房間 UUID
+
+    返回：
+        - status: "deleted"
+        - room_id: 被刪除的房間 ID
+
+    注意：
+        - 此操作不可逆
+        - 所有相關玩家、回合、行動、訊息、指示物、事件記錄都會被刪除
+    """
+    try:
+        room = RoomManager.get_room_by_id(db, room_id)
+
+        # 記錄刪除事件（在刪除前）
+        logger.info(f"Deleting room {room_id} (code: {room.code}, status: {room.status})")
+
+        # 刪除房間（級聯刪除會自動清理所有相關資料）
+        db.delete(room)
+        db.commit()
+
+        return {
+            "status": "deleted",
+            "room_id": room_id
+        }
+
+    except RoomNotFound:
+        raise HTTPException(status_code=404, detail="Room not found")
+    except Exception as e:
+        logger.error(f"Failed to delete room: {e}", exc_info=True)
+        db.rollback()
         raise HTTPException(status_code=500, detail="Internal error")

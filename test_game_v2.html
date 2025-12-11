@@ -693,14 +693,23 @@
             updatePollBadge(false);
         }
 
+        let isPolling = false;  // 防止重複輪詢
+
         async function pollState(forceFull = false) {
             if (!state.host.roomId) return;
-            const version = forceFull ? 0 : state.pollVersion;
-            const playerId = getPollPlayerId();
-            let url = `${API_BASE}/rooms/${state.host.roomId}/state?version=${version}`;
-            if (playerId) url += `&player_id=${playerId}`;
 
+            // 防止重疊的輪詢請求
+            if (isPolling && !forceFull) {
+                return;
+            }
+
+            isPolling = true;
             try {
+                const version = forceFull ? 0 : state.pollVersion;
+                const playerId = getPollPlayerId();
+                let url = `${API_BASE}/rooms/${state.host.roomId}/state?version=${version}`;
+                if (playerId) url += `&player_id=${playerId}`;
+
                 logEvent(`POLL v${version} (player=${playerId || 'none'})`, 'api-call');
                 const res = await fetch(url);
                 if (!res.ok) {
@@ -710,13 +719,15 @@
                 const body = await res.json();
                 if (!body.has_update) {
                     state.pollVersion = body.version;
-                    logEvent(`POLL v${body.version}: no update`, 'ws-event');
+                    // logEvent(`POLL v${body.version}: no update`, 'ws-event');  // 減少日誌
                     return;
                 }
                 applyStateSnapshot(body.data, body.version, playerId);
                 logEvent(`POLL v${version} → v${body.version}: 已更新`, 'success');
             } catch (err) {
                 logEvent(`POLL error: ${err.message}`, 'error');
+            } finally {
+                isPolling = false;
             }
         }
 

@@ -71,6 +71,7 @@ backend/
 ## API Endpoints
 
 ### Room Management
+- `GET /api/rooms` - List all rooms (admin/debug)
 - `POST /api/rooms` - Create room
 - `GET /api/rooms/{code}` - Get room status
 - `GET /api/rooms/{room_id}/state?version=x&player_id=y` - Short-poll room state (versioned)
@@ -78,6 +79,7 @@ backend/
 - `POST /api/rooms/{room_id}/rounds/next` - Next round
 - `POST /api/rooms/{room_id}/end` - End game
 - `GET /api/rooms/{room_id}/summary` - Game summary
+- `DELETE /api/rooms/{room_id}` - Delete room (and all related data)
 
 ### Players
 - `POST /api/rooms/{code}/join` - Join room
@@ -114,4 +116,15 @@ backend/
 - Call `GET /api/rooms/{room_id}/state?version=<current>&player_id=<optional>` every 1–1.5s.
 - If `has_update=false`, keep your cached UI.
 - When `has_update=true`, update UI with the returned snapshot and store the new `version`.
+
+## Room Cleanup
+
+The backend automatically cleans up old rooms to prevent database bloat:
+
+- **Every 6 hours**: Background task runs to clean up rooms
+- **FINISHED rooms**: Deleted after 24 hours of inactivity
+- **WAITING/PLAYING rooms**: Deleted after 2 hours of inactivity
+- **Manual deletion**: Use `DELETE /api/rooms/{room_id}` to immediately delete a room
+
+All related data (players, rounds, actions, messages, indicators, events) are automatically deleted via cascade.
 

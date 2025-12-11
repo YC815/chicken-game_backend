@@ -14,7 +14,6 @@ from models import Player, RoomStatus
 from schemas import PlayerJoin, PlayerResponse
 from core.room_manager import RoomManager
 from core.exceptions import RoomNotFound, RoomNotAcceptingPlayers
-from services.naming_service import generate_display_name
 from services.state_service import bump_state_version
 
 router = APIRouter(prefix="/api/rooms", tags=["players"])
@@ -47,14 +46,11 @@ def join_room(code: str, player_data: PlayerJoin, db: Session = Depends(get_db))
                 f"Room {code} is not accepting players (status: {room.status.value})"
             )
 
-        # 3. 生成顯示名稱
-        display_name = generate_display_name(room.id, db)
-
-        # 4. 建立玩家
+        # 3. 建立玩家（顯示名稱即玩家設定的暱稱）
         player = Player(
             room_id=room.id,
             nickname=player_data.nickname,
-            display_name=display_name,
+            display_name=player_data.nickname,
             is_host=False
         )
         db.add(player)
@@ -63,7 +59,7 @@ def join_room(code: str, player_data: PlayerJoin, db: Session = Depends(get_db))
         db.refresh(player)
 
         logger.info(
-            f"Player {player.id} ({player.nickname}) joined room {room.id} as {display_name}"
+            f"Player {player.id} ({player.nickname}) joined room {room.id}"
         )
 
         return PlayerResponse(
