@@ -30,7 +30,8 @@ class ConnectionManager:
     """
 
     def __init__(self):
-        self.active_connections: Dict[UUID, Set[WebSocket]] = {}
+        # room_id 用字串（因為 WebSocket 路徑參數是 str）
+        self.active_connections: Dict[str, Set[WebSocket]] = {}
 
     async def connect(self, websocket: WebSocket, room_id: str):
         """
@@ -134,17 +135,54 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+# IMPORTANT: Health check endpoint MUST be defined BEFORE /ws/{room_id}
+# Otherwise FastAPI will treat "health" as a room_id value
+@router.websocket("/ws/health")
+async def websocket_health_endpoint(websocket: WebSocket):
+    """
+    Health check endpoint for WebSocket testing.
+
+    Does not require room_id. Responds to any message with "OK".
+    Useful for verification scripts and monitoring.
+
+    NOTE: This route must be defined before /ws/{room_id} to avoid
+    being caught by the path parameter.
+    """
+    await websocket.accept()
+    logger.info("WebSocket health check connection established")
+    try:
+        while True:
+            data = await websocket.receive_text()
+            logger.info(f"Health check received: {repr(data)}")
+            # Strip whitespace to handle newlines from echo/websocat
+            if data.strip() == "ping":
+                await websocket.send_text("pong")
+            else:
+                await websocket.send_text("OK")
+    except WebSocketDisconnect:
+        logger.info("Health check client disconnected")
+
+
 @router.websocket("/ws/{room_id}")
 async def websocket_endpoint(websocket: WebSocket, room_id: str):
+    """
+    WebSocket endpoint for room-specific connections.
+
+    Supports ping/pong for keep-alive testing.
+    """
     await manager.connect(websocket, room_id)
     try:
         while True:
             # Keep connection alive, receive ping/pong if needed
             data = await websocket.receive_text()
-            # Echo back for keep-alive
-            if data == "ping":
+            # Echo back for keep-alive (strip to handle newlines)
+            if data.strip() == "ping":
+                logger.info(f"Received ping from room {room_id}, sending pong")
                 await websocket.send_text("pong")
+            else:
+                logger.debug(f"Received message in room {room_id}: {data[:50]}")
     except WebSocketDisconnect:
+        logger.info(f"Client disconnected from room {room_id}")
         manager.disconnect(websocket, room_id)
 
 
