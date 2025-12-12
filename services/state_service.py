@@ -110,18 +110,40 @@ def build_room_state(
         ).first()
 
     if current_round:
-        submitted_actions = db.query(Action).filter(
+        # Collect all submitted actions with player info
+        submitted_actions_data = db.query(Action).filter(
             Action.round_id == current_round.id
-        ).count()
+        ).all()
+        submitted_player_ids = {action.player_id for action in submitted_actions_data}
+
+        # Get all players in this round from pairs
         pairs = get_pairs_in_round(current_round.id, db)
-        total_players = len(pairs) * 2
+        all_round_player_ids = set()
+        for pair in pairs:
+            all_round_player_ids.add(pair.player1_id)
+            all_round_player_ids.add(pair.player2_id)
+
+        total_players = len(all_round_player_ids)
+        submitted_actions = len(submitted_player_ids)
+
+        # Build player submission status list
+        from schemas import PlayerSubmissionStatus
+        player_submissions = []
+        for player in players:
+            if player.id in all_round_player_ids and not player.is_host:
+                player_submissions.append(PlayerSubmissionStatus(
+                    player_id=player.id,
+                    display_name=player.display_name,
+                    submitted=(player.id in submitted_player_ids)
+                ))
 
         round_payload = RoundStatePayload(
             round_number=current_round.round_number,
             phase=current_round.phase,
             status=current_round.status,
             submitted_actions=submitted_actions,
-            total_players=total_players
+            total_players=total_players,
+            player_submissions=player_submissions
         )
 
         if player_id:

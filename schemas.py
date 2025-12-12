@@ -125,6 +125,15 @@ class PlayerStatePayload(BaseModel):
         from_attributes = True
 
 
+class PlayerSubmissionStatus(BaseModel):
+    player_id: str
+    display_name: str
+    submitted: bool
+
+    class Config:
+        from_attributes = True
+
+
 class RoundStatePayload(BaseModel):
     round_number: int
     phase: RoundPhase
@@ -136,6 +145,7 @@ class RoundStatePayload(BaseModel):
     your_payoff: Optional[int] = None
     opponent_payoff: Optional[int] = None
     opponent_display_name: Optional[str] = None
+    player_submissions: Optional[list[PlayerSubmissionStatus]] = None
 
     class Config:
         from_attributes = True
